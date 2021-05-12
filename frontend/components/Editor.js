@@ -138,6 +138,7 @@ const first_true_key = (obj) => {
  *      mime: string,
  *      rootassignee: ?string,
  *  }
+ *  published_objects: object,
  * }}
  */
 
@@ -241,6 +242,7 @@ export class Editor extends Component {
 
         // these are things that can be done to the local notebook
         this.actions = {
+            get_notebook: () => this?.state?.notebook || {},
             send: (...args) => this.client.send(...args),
             //@ts-ignore
             update_notebook: (...args) => this.update_notebook(...args),
@@ -435,6 +437,7 @@ export class Editor extends Component {
                                     cell: this.state.notebook.cell_inputs[cell_id],
                                 }
                             }),
+                            selected_cells: [],
                         })
                         await update_notebook((notebook) => {
                             for (let cell_id of cell_ids) {
@@ -494,8 +497,8 @@ export class Editor extends Component {
                 // is a value already present in the state.
                 // Keep an eye on https://github.com/fonsp/Pluto.jl/issues/275
 
-                // Wrap the bond value in an object so immer assumes it is changed
                 await update_notebook((notebook) => {
+                    // We wrap the bond value in an object so immer assumes it is changed
                     notebook.bonds[symbol] = { value: value }
                 })
             },
@@ -733,7 +736,7 @@ patch: ${JSON.stringify(
 
             // do one autocomplete to trigger its precompilation
             // TODO Do this from julia itself
-            await this.client.send("complete", { query: "sq" }, { notebook_id: this.state.notebook.notebook_id })
+            this.client.send("complete", { query: "sq" }, { notebook_id: this.state.notebook.notebook_id })
 
             setTimeout(init_feedback, 2 * 1000) // 2 seconds - load feedback a little later for snappier UI
         }
@@ -1057,9 +1060,13 @@ patch: ${JSON.stringify(
         //@ts-ignore
         window.editor_state = this.state
 
-        document.title = "🎈 " + this.state.notebook.shortpath + " — Pluto.jl"
-        if (old_state?.notebook?.path !== this.state.notebook.path) {
-            update_stored_recent_notebooks(this.state.notebook.path, old_state?.notebook?.path)
+        const new_state = this.state
+
+        if (old_state?.notebook?.path !== new_state.notebook.path) {
+            update_stored_recent_notebooks(new_state.notebook.path, old_state?.notebook?.path)
+        }
+        if (old_state?.notebook?.shortpath !== new_state.notebook.shortpath) {
+            document.title = "🎈 " + new_state.notebook.shortpath + " — Pluto.jl"
         }
 
         Object.entries(this.cached_status).forEach((e) => {
@@ -1067,7 +1074,8 @@ patch: ${JSON.stringify(
         })
 
         // this class is used to tell our frontend tests that the updates are done
-        document.body.classList.toggle("update_is_ongoing", pending_local_updates > 0)
+        //@ts-ignore
+        document.body._update_is_ongoing = pending_local_updates > 0
 
         if (this.notebook_is_idle() && this.bonds_changes_to_apply_when_done.length !== 0) {
             let bonds_patches = this.bonds_changes_to_apply_when_done
