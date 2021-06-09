@@ -473,15 +473,31 @@ export const CellInput = ({
         })
 
         cm.on("paste", (cm, e) => {
-            const topaste = e.clipboardData.getData("text/plain")
-            const deserializer = detect_deserializer(topaste, false)
-            if (deserializer != null) {
-                pluto_actions.add_deserialized_cells(topaste, -1, deserializer)
-                e.stopImmediatePropagation()
+            console.log(cell_id)
+            const cdata = e.clipboardData
+            if (cdata.files.length == 0) { // The clipboard is not a file
+                const topaste = e.clipboardData.getData("text/plain")
+                const deserializer = detect_deserializer(topaste, false)
+                if (deserializer != null) {
+                    pluto_actions.add_deserialized_cells(topaste, -1, deserializer)
+                    e.stopImmediatePropagation()
+                    e.preventDefault()
+                    e.codemirrorIgnore = true
+                }
+                e.stopPropagation()
+            } else {  /* We want to capture the file and save it on the computer */
                 e.preventDefault()
-                e.codemirrorIgnore = true
+                let myBlob = cdata.files[0]
+                let ftype,fext 
+                [ftype, fext] = myBlob.type.split("/")  /* Separate image type and extension */
+                // Create the href to download the image
+                let link = document.createElement("a")
+                link.href = URL.createObjectURL(myBlob) /* Create URL from the Blob */
+                let fname = cell_id + "." + fext /* Create the file name from t he cell_id */
+                link.download = fname
+                link.click() // Downlaod the file
+                cm.setValue(`show_pasted_image(\"${fname}\")`)
             }
-            e.stopPropagation()
         })
 
         cm.on("mousedown", (cm, e) => {
