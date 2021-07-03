@@ -473,13 +473,12 @@ export const CellInput = ({
         })
 
         cm.on("paste", (cm, e) => {
-            console.log(cell_id)
             const cdata = e.clipboardData
             if (cdata.files.length == 0) { // The clipboard is not a file
                 const topaste = e.clipboardData.getData("text/plain")
                 const deserializer = detect_deserializer(topaste, false)
                 if (deserializer != null) {
-                    pluto_actions.add_deserialized_cells(topaste, -1, deserializer)
+                    pluto_actions.add_deserialized_cells(topaste, cell_id, deserializer)
                     e.stopImmediatePropagation()
                     e.preventDefault()
                     e.codemirrorIgnore = true
