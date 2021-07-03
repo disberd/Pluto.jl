@@ -19,7 +19,7 @@ function generate_html(;
         if version isa Nothing
             version = PLUTO_VERSION
         end
-        "https://cdn.jsdelivr.net/gh/fonsp/Pluto.jl@$(string(version))/frontend/"
+        "https://cdn.jsdelivr.net/gh/disberd/Pluto.jl@master/frontend/"
     else
         pluto_cdn_root
     end
