@@ -112,6 +112,36 @@ function save_notebook(io, notebook::Notebook)
         print(io, _cell_suffix)
     end
 
+    
+    using_plutopkg = notebook.nbpkg_ctx !== nothing
+    
+    write_package = if using_plutopkg
+        ptoml_path = joinpath(PkgCompat.env_dir(notebook.nbpkg_ctx), "Project.toml")
+        mtoml_path = joinpath(PkgCompat.env_dir(notebook.nbpkg_ctx), "Manifest.toml")
+        
+        ptoml_contents = isfile(ptoml_path) ? read(ptoml_path, String) : ""
+        mtoml_contents = isfile(mtoml_path) ? read(mtoml_path, String) : ""
+        
+        !isempty(strip(ptoml_contents))
+    else
+        false
+    end
+
+    if write_package
+        println(io, _cell_id_delimiter, string(_ptoml_cell_id))
+        print(io, "PLUTO_PROJECT_TOML_CONTENTS = \"\"\"\n")
+        write(io, ptoml_contents)
+        print(io, "\"\"\"")
+        print(io, _cell_suffix)
+        
+        println(io, _cell_id_delimiter, string(_mtoml_cell_id))
+        print(io, "PLUTO_MANIFEST_TOML_CONTENTS = \"\"\"\n")
+        write(io, mtoml_contents)
+        print(io, "\"\"\"")
+        print(io, _cell_suffix)
+    end
+    
+
     println(io, _cell_id_delimiter, "Cell order:")
     for c in notebook.cells
         delim = c.code_folded ? _order_delimiter_folded : _order_delimiter

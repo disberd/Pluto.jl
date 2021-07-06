@@ -478,8 +478,25 @@ space
 # ╔═╡ d163f434-cc5a-11ea-19e9-9319ba994efa
 space
 
-# ╔═╡ 7242e236-cc4c-11ea-06d9-c1825cfe1fea
-md"#### Footnote about package environments
+# ╔═╡ 00000000-0000-0000-0000-000000000001
+PLUTO_PROJECT_TOML_CONTENTS = """
+[deps]
+PlutoUI = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
+
+[compat]
+PlutoUI = "~0.7.9"
+"""
+
+# ╔═╡ 00000000-0000-0000-0000-000000000002
+PLUTO_MANIFEST_TOML_CONTENTS = """
+# This file is machine-generated - editing it directly is not advised
+
+[[Base64]]
+uuid = "2a0f44e3-6c83-55bd-87e4-b1978d98bd5f"
+
+[[Dates]]
+deps = ["Printf"]
+uuid = "ade2ca70-3891-5945-98fb-dc099432e06a"
 
 `PlutoUI` needs to be installed for this sample notebook, but we don't want to add it to your global package environment. (Although you should install PlutoUI if you find it useful! It's a tiny package.) 
 

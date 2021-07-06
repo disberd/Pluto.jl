@@ -4,6 +4,7 @@ import observablehq_for_myself from "../common/SetupCellEnvironment.js"
 import { utf8index_to_ut16index } from "../common/UnicodeTools.js"
 import { has_ctrl_or_cmd_pressed, map_cmd_to_ctrl_on_mac } from "../common/KeyboardShortcuts.js"
 import { PlutoContext } from "../common/PlutoContext.js"
+import { nbpkg_fingerprint, PkgStatusMark, PkgActivateMark, pkg_disablers } from "./PkgStatusMark.js"
 
 //@ts-ignore
 import { mac, chromeOS } from "https://cdn.jsdelivr.net/gh/codemirror/CodeMirror@5.60.0/src/util/browser.js"
@@ -72,6 +73,92 @@ export const CellInput = ({
 
     const time_last_being_force_focussed_ref = useRef(0)
     const time_last_genuine_backspace = useRef(0)
+
+    const pkg_bubbles = useRef(new Map())
+
+    const nbpkg_ref = useRef(nbpkg)
+    useEffect(() => {
+        nbpkg_ref.current = nbpkg
+        pkg_bubbles.current.forEach((b) => {
+            b.on_nbpkg(nbpkg)
+        })
+        // console.log("nbpkg effect!", nbpkg_fingerprint(nbpkg))
+    }, nbpkg_fingerprint(nbpkg))
+
+    const update_line_bubbles = (line_i) => {
+        const cm = cm_ref.current
+        /** @type {string} */
+        const line = cm.getLine(line_i)
+        if (line != undefined) {
+            // search for the "import Example, Plots" expression using regex
+
+            // dunno
+            // const re = /(using|import)\s*(\w+(?:\,\s*\w+)*)/g
+
+            // import A: b. c
+            // const re = /(using|import)(\s*\w+(\.\w+)*(\s*\:(\s*\w+\,)*(\s*\w+)?))/g
+
+            // import A, B, C
+            const re = /(using|import)(\s*\w+(\.\w+)*)(\s*\,\s*\w+(\.\w+)*)*/g
+            // const re = /(using|import)\s*(\w+)/g
+            for (const import_match of line.matchAll(re)) {
+                const start = import_match.index + import_match[1].length
+
+                // ask codemirror what its parser found for the "import" or "using" word. If it is not a "keyword", then this is part of a comment or a string.
+                const import_token = cm.getTokenAt({ line: line_i, ch: start }, true)
+
+                if (import_token.type === "keyword") {
+                    const inner = import_match[0].substr(import_match[1].length)
+
+                    // find the package name, e.g. `Plot` for `Plot.Extras.coolplot`
+                    const inner_re = /(\w+)(\.\w+)*/g
+                    for (const package_match of inner.matchAll(inner_re)) {
+                        const package_name = package_match[1]
+
+                        if (package_name !== "Base" && package_name !== "Core") {
+                            // if the widget already exists, keep it, if not, create a new one
+                            const widget = get(pkg_bubbles.current, package_name, () => {
+                                const b = PkgStatusMark({
+                                    pluto_actions: pluto_actions,
+                                    package_name: package_name,
+                                    refresh_cm: () => cm.refresh(),
+                                    notebook_id: notebook_id,
+                                })
+                                b.on_nbpkg(nbpkg_ref.current)
+                                return b
+                            })
+
+                            cm.setBookmark(
+                                { line: line_i, ch: start + package_match.index + package_match[0].length },
+                                {
+                                    widget: widget,
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+
+            const match = _.find(pkg_disablers, (f_name) => line.includes(f_name))
+            if (match != null) {
+                // if the widget already exists, keep it, if not, create a new one
+                const widget = get(pkg_bubbles.current, `disable-pkg-${match}-${line_i}`, () =>
+                    PkgActivateMark({
+                        package_name: match,
+                        refresh_cm: () => cm.refresh(),
+                    })
+                )
+
+                cm.setBookmark(
+                    { line: line_i, ch: 999 },
+                    {
+                        widget: widget,
+                    }
+                )
+            }
+        }
+    }
+    const update_all_line_bubbles = () => range(0, cm_ref.current.lineCount() - 1).forEach(update_line_bubbles)
 
     useEffect(() => {
         const first_time = remote_code_ref.current == null
