@@ -1,8 +1,11 @@
 ### A Pluto.jl notebook ###
-# v0.11.12
+# v0.15.0
 
 using Markdown
 using InteractiveUtils
+
+# ╔═╡ 5e611449-c239-4547-9d13-5db33a081e58
+using Plots
 
 # ╔═╡ 7b93882c-9ad8-11ea-0288-0941e163f9d5
 md"""
@@ -12,32 +15,8 @@ Pluto is an excellent enviroment to visualise your data. This notebook shows a f
 
 I wrote this notebook so you can understand it even if you have never used `Plots`. However, it is not intend as a complete tutorial for the package. If you want to start making your own plots, I recommend looking at the package [documentation](https://docs.juliaplots.org/latest/) for a full tutorial as well.
 
-Let's start by importing the `Plots` package. We do this in a special way, which guarantees that anyone who opens the notebook can use the package.
+Let's start by importing the `Plots` package. _(Pluto's package manager automatically takes care of installing and tracking dependencies!)_
 """
-
-# ╔═╡ d889e13e-f0ff-11ea-3306-57491904d83f
-md"_First, we set up a clean package environment:_"
-
-# ╔═╡ aefb6004-f0ff-11ea-10c9-c504c7aa9fe5
-begin
-	import Pkg
-	Pkg.activate(mktempdir())
-end
-
-# ╔═╡ a0f0ae42-9ad8-11ea-2475-a735df64aa28
-begin
-	Pkg.add("Plots")
-	using Plots
-end
-
-# ╔═╡ e48a0e78-f0ff-11ea-2852-2f4eee1a7d2d
-md"_Next, we add the `Plots` package to our environment, and we import it._"
-
-# ╔═╡ a9a3c640-f100-11ea-2e86-5f0e81a37ebd
-md"You can just put a cell like this anywhere in your notebook, if you want to add+import more packages."
-
-# ╔═╡ c042d3d2-f100-11ea-3833-af1f19afd400
-md"(If you already had Plots installed, then this will just use the globally installed version! Neat)"
 
 # ╔═╡ e5abaf40-f105-11ea-1494-2da858d7db5b
 md"We need to choose a _backend_ for Plots.jl. We choose `plotly` because it works with no additional dependencies. You can [read more about backends](http://docs.juliaplots.org/latest/backends/#backends) in Plots.jl - it's one of its coolest features!"
@@ -1043,12 +1022,7 @@ version = "0.9.1+5"
 
 # ╔═╡ Cell order:
 # ╟─7b93882c-9ad8-11ea-0288-0941e163f9d5
-# ╟─d889e13e-f0ff-11ea-3306-57491904d83f
-# ╠═aefb6004-f0ff-11ea-10c9-c504c7aa9fe5
-# ╟─e48a0e78-f0ff-11ea-2852-2f4eee1a7d2d
-# ╠═a0f0ae42-9ad8-11ea-2475-a735df64aa28
-# ╟─a9a3c640-f100-11ea-2e86-5f0e81a37ebd
-# ╟─c042d3d2-f100-11ea-3833-af1f19afd400
+# ╠═5e611449-c239-4547-9d13-5db33a081e58
 # ╟─e5abaf40-f105-11ea-1494-2da858d7db5b
 # ╠═9414a092-f105-11ea-10cd-23f84e47d876
 # ╟─5ae65950-9ad9-11ea-2e14-35119d369acd
@@ -1089,3 +1063,5 @@ version = "0.9.1+5"
 # ╠═9e4d1462-9ae4-11ea-3c0f-774d68a671c3
 # ╠═a7906786-9ae4-11ea-0175-4f860c05a8a2
 # ╟─d3cbc548-9ae4-11ea-261f-7fb956839e53
+# ╟─00000000-0000-0000-0000-000000000001
+# ╟─00000000-0000-0000-0000-000000000002

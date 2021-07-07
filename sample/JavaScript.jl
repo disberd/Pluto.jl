@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.14.7
+# v0.15.0
 
 using Markdown
 using InteractiveUtils
@@ -14,15 +14,7 @@ macro bind(def, element)
 end
 
 # ╔═╡ 571613a1-6b4b-496d-9a68-aac3f6a83a4b
-begin
-    import Pkg
-    Pkg.activate(mktempdir())
-    Pkg.add([
-        Pkg.PackageSpec(name="PlutoUI", version="0.7"),
-        Pkg.PackageSpec(name="HypertextLiteral", version="0.7"),
-    ])
-    using PlutoUI, HypertextLiteral
-end
+using PlutoUI, HypertextLiteral
 
 # ╔═╡ 97914842-76d2-11eb-0c48-a7eedca870fb
 md"""
@@ -1157,3 +1149,5 @@ uuid = "4ec0a83e-493e-50e2-b9ac-8f72acf5a8f5"
 # ╠═64cbf19c-a4e3-4cdb-b4ec-1fbe24be55ad
 # ╟─cc318a19-316f-4fd9-8436-fb1d42f888a3
 # ╟─7aacdd8c-1571-4461-ba6e-0fd65dd8d788
+# ╟─00000000-0000-0000-0000-000000000001
+# ╟─00000000-0000-0000-0000-000000000002

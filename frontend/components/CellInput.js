@@ -1,5 +1,5 @@
 import { html, useState, useEffect, useLayoutEffect, useRef, useContext, useMemo } from "../imports/Preact.js"
-import observablehq_for_myself from "../common/SetupCellEnvironment.js"
+import _ from "../imports/lodash.js"
 
 import { utf8index_to_ut16index } from "../common/UnicodeTools.js"
 import { has_ctrl_or_cmd_pressed, map_cmd_to_ctrl_on_mac } from "../common/KeyboardShortcuts.js"
@@ -20,6 +20,24 @@ const clear_selection = (cm) => {
 
 const last = (x) => x[x.length - 1]
 const all_equal = (x) => x.every((y) => y === x[0])
+const swap = (a, i, j) => {
+    ;[a[i], a[j]] = [a[j], a[i]]
+}
+const range = (a, b) => {
+    const x = Math.min(a, b)
+    const y = Math.max(a, b)
+    return [...Array(y + 1 - x).keys()].map((i) => i + x)
+}
+
+const get = (map, key, creator) => {
+    if (map.has(key)) {
+        return map.get(key)
+    } else {
+        const val = creator()
+        map.set(key, val)
+        return val
+    }
+}
 
 // Adapted from https://gomakethings.com/how-to-test-if-an-element-is-in-the-viewport-with-vanilla-javascript/
 var offsetFromViewport = function (elem) {
@@ -57,6 +75,7 @@ export const CellInput = ({
     on_update_doc_query,
     on_focus_neighbor,
     on_drag_drop_events,
+    nbpkg,
     cell_id,
     notebook_id,
     running_disabled,
@@ -173,6 +192,7 @@ export const CellInput = ({
             cm_ref.current?.setValue(remote_code)
             if (first_time) {
                 cm_ref.current.clearHistory()
+                update_all_line_bubbles()
             }
         }
     }, [remote_code])
@@ -216,6 +236,8 @@ export const CellInput = ({
                 }
             },
         }))
+
+        setTimeout(update_all_line_bubbles, 300)
 
         const keys = {}
 
@@ -306,14 +328,7 @@ export const CellInput = ({
                 cm.setSelections(new_selections)
             }
         }
-        const swap = (a, i, j) => {
-            ;[a[i], a[j]] = [a[j], a[i]]
-        }
-        const range = (a, b) => {
-            const x = Math.min(a, b)
-            const y = Math.max(a, b)
-            return [...Array(y + 1 - x).keys()].map((i) => i + x)
-        }
+
         const alt_move = (delta) => {
             const selections = cm.listSelections()
             const selected_lines = new Set([].concat(...selections.map((sel) => range(sel.anchor.line, sel.head.line))))
@@ -541,12 +556,31 @@ export const CellInput = ({
             }, 0)
         })
 
-        cm.on("change", (_, e) => {
+        cm.on("change", (cm, e) => {
+            // console.log("cm changed event ", e)
             const new_value = cm.getValue()
             if (new_value.length > 1 && new_value[0] === "?") {
                 window.dispatchEvent(new CustomEvent("open_live_docs"))
             }
             on_change_ref.current(new_value)
+
+            // remove the currently attached widgets from the codemirror DOM. Widgets corresponding to package imports that did not changed will be re-attached later.
+            cm.getAllMarks().forEach((m) => {
+                const m_position = m.find()
+                if (e.from.line <= m_position.line && m_position.line <= e.to.line) {
+                    m.clear()
+                }
+            })
+
+            // TODO: split this function into a search that returns the list of mathces and an updater
+            // we can use that when you submit the cell to definitively find the list of import
+            // and then purge the map?
+
+            // TODO: debounce _any_ edit to update all imports for this cell
+            // because adding #= to the start of a cell will remove imports later
+
+            // iterate through changed lines
+            range(e.from.line, e.to.line).forEach(update_line_bubbles)
         })
 
         cm.on("blur", () => {
@@ -566,7 +600,7 @@ export const CellInput = ({
                 const topaste = e.clipboardData.getData("text/plain")
                 const deserializer = detect_deserializer(topaste, false)
                 if (deserializer != null) {
-                    pluto_actions.add_deserialized_cells(topaste, -1, deserializer)
+                    pluto_actions.add_deserialized_cells(topaste, cell_id, deserializer)
                     e.stopImmediatePropagation()
                     e.preventDefault()
                     e.codemirrorIgnore = true
@@ -617,6 +651,9 @@ export const CellInput = ({
         document.fonts.ready.then(() => {
             cm.refresh()
         })
+
+        // we initialize with "" and then call setValue to trigger the "change" event
+        cm.setValue(local_code)
     }, [])
 
     // useEffect(() => {
@@ -681,7 +718,7 @@ const InputContextMenu = ({ on_delete, cell_id, run_cell, running_disabled }) =>
     return html` <button onMouseleave=${mouseleave} onClick=${() => setOpen(!open)} onBlur=${() => setOpen(false)} class="delete_cell" title="Actions">
         <span class="icon"></span>
         ${open
-            ? html`<ul onMouseenter=${mouseenter} class="input_menu">
+            ? html`<ul onMouseenter=${mouseenter} class="input_context_menu">
                   <li onClick=${on_delete} title="Delete"><span class="delete_icon" />Delete cell</li>
                   <li
                       onClick=${toggle_running_disabled}
