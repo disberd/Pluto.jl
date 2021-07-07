@@ -3,6 +3,13 @@ using Base64
 
 const default_binder_url = "https://mybinder.org/v2/gh/fonsp/pluto-on-binder/v$(string(PLUTO_VERSION))"
 
+# const cdn_version_override = nothing
+const cdn_version_override = "2a48ae2"
+
+if cdn_version_override !== nothing
+    @warn "Reminder to fonsi: Using a development version of Pluto for CDN assets. The binder button might not work. You should not see this on a released version of Pluto." cdn_version_override
+end
+
 """
 See [PlutoSliderServer.jl](https://github.com/JuliaPluto/PlutoSliderServer.jl) if you are interested in exporting notebooks programatically.
 """
@@ -16,7 +23,7 @@ function generate_html(;
     original = read(project_relative_path("frontend", "editor.html"), String)
 
     cdn_root = if pluto_cdn_root === nothing
-        if version isa Nothing
+        if version === nothing
             version = PLUTO_VERSION
         end
         "https://cdn.jsdelivr.net/gh/disberd/Pluto.jl@master/frontend/"
