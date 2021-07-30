@@ -89,6 +89,8 @@ const _order_delimiter = "# ╠═"
 const _order_delimiter_folded = "# ╟─"
 const _cell_suffix = "\n\n"
 
+const _notebook_exclusive_prefix =             "#=╠═╡ notebook_exclusive\n"
+const _notebook_exclusive_suffix =           "\n  ╠═╡ notebook_exclusive =#"
 const _ptoml_cell_id = UUID(1)
 const _mtoml_cell_id = UUID(2)
 
@@ -120,8 +122,15 @@ function save_notebook(io, notebook::Notebook)
     
     for c in cells_ordered
         println(io, _cell_id_delimiter, string(c.cell_id))
+
+        # We put the notebook exclusive prefix before the rest of the code
+        c.notebook_exclusive && print(io, _notebook_exclusive_prefix)
+
         # write the cell code and prevent collisions with the cell delimiter
         print(io, replace(c.code, _cell_id_delimiter => "# "))
+
+        c.notebook_exclusive && print(io, _notebook_exclusive_suffix)
+
         print(io, _cell_suffix)
     end
 
@@ -211,10 +220,17 @@ function load_notebook_nobackup(io, path)::Notebook
             code_raw = String(readuntil(io, _cell_id_delimiter))
             # change Windows line endings to Linux
             code_normalised = replace(code_raw, "\r\n" => "\n")
+            
+            # get the information if a cell is exclusive to this notebook
+            notebook_exclusive = startswith(code_normalised, _notebook_exclusive_prefix)
+            # remove the disabled on startup comments for further processing in Julia
+            code_normalised = replace(replace(code_normalised, _notebook_exclusive_prefix => ""), _notebook_exclusive_suffix => "")
+
             # remove the cell suffix
             code = code_normalised[1:prevind(code_normalised, end, length(_cell_suffix))]
 
             read_cell = Cell(cell_id, code)
+            read_cell.notebook_exclusive = notebook_exclusive
             collected_cells[cell_id] = read_cell
         end
     end

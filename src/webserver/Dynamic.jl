@@ -105,6 +105,7 @@ function notebook_to_js(notebook::Notebook)
                 "code" => cell.code,
                 "code_folded" => cell.code_folded,
                 "running_disabled" => cell.running_disabled,
+                "notebook_exclusive" => cell.notebook_exclusive,
             )
         for (id, cell) in notebook.cells_dict),
         "cell_dependencies" => Dict{UUID,Dict{String,Any}}(

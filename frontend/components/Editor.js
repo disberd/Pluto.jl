@@ -100,6 +100,7 @@ const first_true_key = (obj) => {
  *  code: string,
  *  code_folded: boolean,
  *  running_disabled: boolean,
+ *  notebook_exclusive: boolean,
  * }}
  */
 
@@ -290,6 +291,7 @@ export class Editor extends Component {
                     code: code,
                     code_folded: false,
                     running_disabled: false,
+                    notebook_exclusive: false,
                 }))
                 
                 if (typeof(index_or_id) === 'number') {
@@ -373,6 +375,7 @@ export class Editor extends Component {
                         code: code,
                         code_folded: false,
                         running_disabled: false,
+                        notebook_exclusive: false,
                     }
                 })
 
@@ -431,6 +434,7 @@ export class Editor extends Component {
                         code,
                         code_folded: false,
                         running_disabled: false,
+                        notebook_exclusive: false,
                     }
                     notebook.cell_order = [...notebook.cell_order.slice(0, index), id, ...notebook.cell_order.slice(index, Infinity)]
                 })

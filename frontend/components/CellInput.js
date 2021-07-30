@@ -79,6 +79,7 @@ export const CellInput = ({
     cell_id,
     notebook_id,
     running_disabled,
+    notebook_exclusive,
 }) => {
     let pluto_actions = useContext(PlutoContext)
 
@@ -687,13 +688,13 @@ export const CellInput = ({
     // TODO effect hook for disable_input?
     return html`
         <pluto-input ref=${dom_node_ref}>
-            <${InputContextMenu} on_delete=${on_delete} cell_id=${cell_id} run_cell=${on_submit} running_disabled=${running_disabled} />
+            <${InputContextMenu} on_delete=${on_delete} cell_id=${cell_id} run_cell=${on_submit} running_disabled=${running_disabled} notebook_exclusive=${notebook_exclusive} />
             <textarea ref=${text_area_ref}></textarea>
         </pluto-input>
     `
 }
 
-const InputContextMenu = ({ on_delete, cell_id, run_cell, running_disabled }) => {
+const InputContextMenu = ({ on_delete, cell_id, run_cell, running_disabled, notebook_exclusive }) => {
     const timeout = useRef(null)
     let pluto_actions = useContext(PlutoContext)
     const [open, setOpen] = useState(false)
@@ -714,6 +715,15 @@ const InputContextMenu = ({ on_delete, cell_id, run_cell, running_disabled }) =>
         await run_cell()
     }
 
+    const toggle_notebook_exclusive = async (e) => {
+        const new_val = !notebook_exclusive
+        e.preventDefault()
+        e.stopPropagation()
+        await pluto_actions.update_notebook((notebook) => {
+            notebook.cell_inputs[cell_id].notebook_exclusive = new_val
+        })
+    }
+
     return html` <button onMouseleave=${mouseleave} onClick=${() => setOpen(!open)} onBlur=${() => setOpen(false)} class="delete_cell" title="Actions">
         <span class="icon"></span>
         ${open
@@ -726,6 +736,7 @@ const InputContextMenu = ({ on_delete, cell_id, run_cell, running_disabled }) =>
                       ${running_disabled ? html`<span class="enable_cell_icon" />` : html`<span class="disable_cell_icon" />`}
                       ${running_disabled ? html`<b>Enable cell</b>` : html`Disable cell`}
                   </li>
+                  <li onClick=${toggle_notebook_exclusive} title="Toggle Notebook Exclusive"><span class="delete_icon" />Toggle Notebook Exclusive</li>
                   <li class="coming_soon" title=""><span class="bandage_icon" /><em>Coming soon…</em></li>
               </ul>`
             : html``}

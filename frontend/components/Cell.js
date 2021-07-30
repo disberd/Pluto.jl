@@ -20,7 +20,7 @@ import { PlutoContext } from "../common/PlutoContext.js"
  * }} props
  * */
 export const Cell = ({
-    cell_input: { cell_id, code, code_folded, running_disabled },
+    cell_input: { cell_id, code, code_folded, running_disabled, notebook_exclusive },
     cell_result: { queued, running, runtime, errored, output, published_objects, depends_on_disabled_cells },
     cell_dependencies: { downstream_cells_map, upstream_cells_map, precedence_heuristic },
     cell_input_local,
@@ -114,6 +114,7 @@ export const Cell = ({
                 code_folded: class_code_folded,
                 running_disabled: running_disabled,
                 depends_on_disabled_cells: depends_on_disabled_cells,
+                notebook_exclusive: notebook_exclusive,
                 show_input: show_input,
                 drop_target: drag_active,
                 saving_file: saving_file,
@@ -185,6 +186,7 @@ export const Cell = ({
                 cell_id=${cell_id}
                 notebook_id=${notebook_id}
                 running_disabled=${running_disabled}
+                notebook_exclusive=${notebook_exclusive}
             />
             <${RunArea}
                 cell_id=${cell_id}
