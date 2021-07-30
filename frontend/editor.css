@@ -849,6 +849,7 @@ pluto-cell.notebook_exclusive::after {
   right: -4px;
   border-radius: 8px;
   border-right: 5px solid #ccc;
+  z-index: 60;
 }
 
 .scroll_y {
