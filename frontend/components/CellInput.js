@@ -736,7 +736,12 @@ const InputContextMenu = ({ on_delete, cell_id, run_cell, running_disabled, note
                       ${running_disabled ? html`<span class="enable_cell_icon" />` : html`<span class="disable_cell_icon" />`}
                       ${running_disabled ? html`<b>Enable cell</b>` : html`Disable cell`}
                   </li>
-                  <li onClick=${toggle_notebook_exclusive} title="Toggle Notebook Exclusive"><span class="delete_icon" />Toggle Notebook Exclusive</li>
+                  <li 
+                      onClick=${toggle_notebook_exclusive} title="Make this cell run only within this notebook"
+                  >
+                      ${notebook_exclusive ? html`<span class="disable_notebook_exclusive_icon" />` : html`<span class="enable_notebook_exclusive_icon" />`}
+                      ${notebook_exclusive ? html`Make open` : html`Make exclusive`}
+                  </li>
                   <li class="coming_soon" title=""><span class="bandage_icon" /><em>Coming soon…</em></li>
               </ul>`
             : html``}
