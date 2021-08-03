@@ -467,6 +467,13 @@ export const CellInput = ({
             keys[`'${opening_char}'`] = open_close_selection(opening_char, closing_char)
         })
 
+        keys['Ctrl-E'] = async () => {
+            const new_val = !pluto_actions.get_notebook().cell_inputs[cell_id].notebook_exclusive
+            await pluto_actions.update_notebook((notebook) => {
+                notebook.cell_inputs[cell_id].notebook_exclusive = new_val
+            })
+        }
+
         cm.setOption("extraKeys", map_cmd_to_ctrl_on_mac(keys))
 
         let is_good_token = (token) => {
@@ -688,13 +695,13 @@ export const CellInput = ({
     // TODO effect hook for disable_input?
     return html`
         <pluto-input ref=${dom_node_ref}>
-            <${InputContextMenu} on_delete=${on_delete} cell_id=${cell_id} run_cell=${on_submit} running_disabled=${running_disabled} notebook_exclusive=${notebook_exclusive} />
+            <${InputContextMenu} on_delete=${on_delete} cell_id=${cell_id} run_cell=${on_submit} running_disabled=${running_disabled} notebook_exclusive=${notebook_exclusive}/>
             <textarea ref=${text_area_ref}></textarea>
         </pluto-input>
     `
 }
 
-const InputContextMenu = ({ on_delete, cell_id, run_cell, running_disabled, notebook_exclusive }) => {
+const InputContextMenu = ({ on_delete, cell_id, run_cell, running_disabled, notebook_exclusive}) => {
     const timeout = useRef(null)
     let pluto_actions = useContext(PlutoContext)
     const [open, setOpen] = useState(false)
