@@ -74,6 +74,7 @@ end
 
 function run(options::Configuration.Options)
     session = ServerSession(;options=options)
+    Distributed.remotecall_eval(Main,[1],:(pluto_session = $session))
     run(session)
 end
 
