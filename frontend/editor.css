@@ -851,6 +851,7 @@ pluto-cell.notebook_exclusive::after {
   top: 0;
   bottom: 0;
   left: 0;
+  z-index: -1;
   right: -4.85px;
   border-radius: 8px;
   border-right: 5px solid #ccc;
