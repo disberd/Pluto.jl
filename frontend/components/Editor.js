@@ -480,6 +480,12 @@ export class Editor extends Component {
                     notebook.cell_inputs[cell_id].code_folded = newFolded
                 })
             },
+            toggle_notebook_exclusive: async (cell_id) => {
+                const newVal = !this.state.notebook.cell_inputs[cell_id].notebook_exclusive
+                await update_notebook((notebook) => {
+                    notebook.cell_inputs[cell_id].notebook_exclusive = newVal
+                })
+            },
             set_and_run_all_changed_remote_cells: () => {
                 const changed = this.state.notebook.cell_order.filter(
                     (cell_id) =>
@@ -943,6 +949,13 @@ patch: ${JSON.stringify(
     The notebook file saves every time you run a cell.`
                 )
                 e.preventDefault()
+            } else if (e.key.toLowerCase() === "e" && has_ctrl_or_cmd_pressed(e)) {
+                const selected_cells = this.state.selected_cells
+                if (selected_cells.length > 0) {
+                    e.preventDefault()
+                    selected_cells.forEach((cell_id) => this.actions.toggle_notebook_exclusive(cell_id))
+                }
+
             }
 
             if (this.state.disable_ui && this.state.offer_binder) {

@@ -180,6 +180,8 @@ export const CellInput = ({
     }
     const update_all_line_bubbles = () => range(0, cm_ref.current.lineCount() - 1).forEach(update_line_bubbles)
 
+    const toggle_notebook_exclusive = async () => await pluto_actions.toggle_notebook_exclusive(cell_id)
+
     useEffect(() => {
         const first_time = remote_code_ref.current == null
         const current_value = cm_ref.current?.getValue() ?? ""
@@ -467,12 +469,7 @@ export const CellInput = ({
             keys[`'${opening_char}'`] = open_close_selection(opening_char, closing_char)
         })
 
-        keys['Ctrl-E'] = async () => {
-            const new_val = !pluto_actions.get_notebook().cell_inputs[cell_id].notebook_exclusive
-            await pluto_actions.update_notebook((notebook) => {
-                notebook.cell_inputs[cell_id].notebook_exclusive = new_val
-            })
-        }
+        keys['Ctrl-E'] = toggle_notebook_exclusive
 
         cm.setOption("extraKeys", map_cmd_to_ctrl_on_mac(keys))
 
@@ -695,13 +692,13 @@ export const CellInput = ({
     // TODO effect hook for disable_input?
     return html`
         <pluto-input ref=${dom_node_ref}>
-            <${InputContextMenu} on_delete=${on_delete} cell_id=${cell_id} run_cell=${on_submit} running_disabled=${running_disabled} notebook_exclusive=${notebook_exclusive}/>
+            <${InputContextMenu} on_delete=${on_delete} cell_id=${cell_id} run_cell=${on_submit} running_disabled=${running_disabled} notebook_exclusive=${notebook_exclusive} toggle_notebook_exclusive=${toggle_notebook_exclusive}/>
             <textarea ref=${text_area_ref}></textarea>
         </pluto-input>
     `
 }
 
-const InputContextMenu = ({ on_delete, cell_id, run_cell, running_disabled, notebook_exclusive}) => {
+const InputContextMenu = ({ on_delete, cell_id, run_cell, running_disabled, notebook_exclusive, toggle_notebook_exclusive}) => {
     const timeout = useRef(null)
     let pluto_actions = useContext(PlutoContext)
     const [open, setOpen] = useState(false)
@@ -720,15 +717,6 @@ const InputContextMenu = ({ on_delete, cell_id, run_cell, running_disabled, note
         })
         // we also 'run' the cell if it is disabled, this will make the backend propage the disabled state to dependent cells
         await run_cell()
-    }
-
-    const toggle_notebook_exclusive = async (e) => {
-        const new_val = !notebook_exclusive
-        e.preventDefault()
-        e.stopPropagation()
-        await pluto_actions.update_notebook((notebook) => {
-            notebook.cell_inputs[cell_id].notebook_exclusive = new_val
-        })
     }
 
     return html` <button onMouseleave=${mouseleave} onClick=${() => setOpen(!open)} onBlur=${() => setOpen(false)} class="delete_cell" title="Actions">
