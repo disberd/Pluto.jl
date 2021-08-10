@@ -1,7 +1,8 @@
 module SessionActions
 
-using FileWatching
-import ..Pluto: ServerSession, Notebook, Cell, emptynotebook, tamepath, new_notebooks_directory, without_pluto_file_extension, numbered_until_new, readwrite, update_save_run!, putnotebookupdates!, putplutoupdates!, load_notebook, clientupdate_notebook_list, WorkspaceManager, @asynclog, update_from_file
+import ..Pluto: ServerSession, Notebook, Cell, emptynotebook, tamepath, new_notebooks_directory, without_pluto_file_extension, numbered_until_new, readwrite, update_save_run!, putnotebookupdates!, putplutoupdates!, load_notebook, clientupdate_notebook_list, WorkspaceManager, @asynclog, UpdateMessage, update_from_file
+import FileWatching: watch_file
+import Dates: now, datetime2unix, UTC, Millisecond
 
 struct NotebookIsRunningException <: Exception
     notebook::Notebook
@@ -18,6 +19,36 @@ end
 function open_url(session::ServerSession, url::AbstractString; kwargs...)
     path = download(url, emptynotebook().path)
     open(session, path; kwargs...)
+end
+
+function notebook_file_watch(session::ServerSession,nb::Notebook;ask_before_reload = false)
+    min_time_between_changes = Millisecond(1000)
+    @asynclog begin
+        watch_file(nb.path)
+        last_timestamp = now(UTC)
+        # The first file change is skipped as that happens when the notebook is created/opened
+        while true
+            watch_file(nb.path)
+            if nb.notebook_id ∉ keys(session.notebooks)
+                # The notebook has been closed, so stop this infinite loop 
+                println("Notebook $(nb.notebook_id) has been closed, exiting the filechange_watch loop")
+                break
+            end
+            # When the file changes, send the timestamp to the editor which assess if the file was modified later than the frontend
+            timestamp = now(UTC)
+            if (timestamp - last_timestamp) > min_time_between_changes
+                if ask_before_reload
+                    unix_timestamp = round(Int,datetime2unix(timestamp)*1000) # Keep it in milliseconds as in js
+                    putplutoupdates!(session, UpdateMessage(:update_notebook_filetime, Dict(:timestamp => unix_timestamp), nb, nothing, nothing))
+                else
+                    update_from_file(session,nb)
+                end
+                last_timestamp = timestamp
+            else
+                println("last update was too close to the previous one")
+            end
+        end
+    end
 end
 
 function open(session::ServerSession, path::AbstractString; run_async=true, compiler_options=nothing, as_sample=false)
@@ -56,10 +87,7 @@ function open(session::ServerSession, path::AbstractString; run_async=true, comp
         putplutoupdates!(session, clientupdate_notebook_list(session.notebooks))
     end
 
-    @asynclog while true
-        watch_file(nb.path)
-        update_from_file(session, nb)
-    end
+    notebook_file_watch(session,nb;ask_before_reload = !session.options.server.auto_reload_notebook_from_file)
 
     nb
 end
@@ -113,6 +141,8 @@ function new(session::ServerSession; run_async=true)
     else
         putplutoupdates!(session, clientupdate_notebook_list(session.notebooks))
     end
+
+    notebook_file_watch(session,nb;ask_before_reload = !session.options.server.auto_reload_notebook_from_file)
 
     nb
 end

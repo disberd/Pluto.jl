@@ -201,6 +201,7 @@ export class Editor extends Component {
             desired_doc_query: null,
             recently_deleted: /** @type {Array<{ index: number, cell: CellInputData }>} */ (null),
             last_update_time: 0,
+            notebook_file_newer: false,
 
             disable_ui: this.launch_params.disable_ui,
             static_preview: this.launch_params.statefile != null,
@@ -554,6 +555,16 @@ export class Editor extends Component {
                 const { message } = await this.client.send("nbpkg_available_versions", { package_name: package_name }, { notebook_id: notebook_id })
                 return message.versions
             },
+            reload_from_file: async () => {
+                const { message } = await this.client.send(
+                    "reload_from_file",
+                    {},
+                    {notebook_id: this.state.notebook.notebook_id}
+                )
+                this.setState({last_update_time: Date.now()})
+                this.setState({notebook_file_newer: false})
+                return
+            }
         }
 
         const apply_notebook_patches = (patches, old_state = undefined) =>
@@ -645,6 +656,12 @@ patch: ${JSON.stringify(
                         break
                     case "log":
                         handle_log(message, this.state.notebook.path)
+                        break
+                    case "update_notebook_filetime":
+                        /* Only update the state here if the notebook_file_newer is false */
+                        if (message.timestamp - this.state.last_update_time > 1000 && !this.state.notebook_file_newer) {
+                            this.setState({notebook_file_newer: true})
+                        }
                         break
                     default:
                         console.error("Received unknown update type!", update)
@@ -1164,6 +1181,7 @@ patch: ${JSON.stringify(
                         <${Preamble}
                             last_update_time=${this.state.last_update_time}
                             any_code_differs=${status.code_differs}
+                            notebook_file_newer=${this.state.notebook_file_newer}
                         />
                         <${Notebook}
                             notebook=${this.state.notebook}
