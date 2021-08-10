@@ -852,6 +852,19 @@ pluto-cell.running_disabled > pluto-output {
     background-color: rgba(139, 139, 139, 0.25);
 }
 
+pluto-cell.notebook_exclusive::after {
+  content: '';
+  display: block;
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  z-index: -1;
+  right: -4.85px;
+  border-radius: 8px;
+  border-right: 5px solid #ccc;
+}
+
 .scroll_y {
     overflow-y: auto;
     max-height: 80vh;
@@ -982,6 +995,10 @@ pluto-cell.code_differs > pluto-input > .CodeMirror {
 pluto-cell.depends_on_disabled_cells > pluto-input .CodeMirror,
 pluto-cell.running_disabled > pluto-input .CodeMirror {
     opacity: 0.3;
+}
+
+pluto-cell.notebook_exclusive > pluto-input .CodeMirror {
+    border-top-right-radius: 4px;
 }
 
 pluto-cell.running_disabled > pluto-input .CodeMirror {
@@ -1399,6 +1416,8 @@ pluto-input > button.delete_cell ul.input_context_menu {
 .disable_cell_icon,
 .delete_icon, 
 .enable_cell_icon,
+.enable_notebook_exclusive_icon,
+.disable_notebook_exclusive_icon,
 .bandage_icon,
 .icon {
     --size: 17px;
@@ -1424,6 +1443,15 @@ pluto-input > button.delete_cell ul.input_context_menu {
 }
 .delete_icon {
     background-image: url(https://cdn.jsdelivr.net/gh/ionic-team/ionicons@5.5.1/src/svg/close-circle-outline.svg);
+}
+
+.enable_notebook_exclusive_icon {
+    background-image: url(https://cdn.jsdelivr.net/gh/ionic-team/ionicons@5.5.2/src/svg/enter-outline.svg);
+    background-size: 15px;
+}
+.disable_notebook_exclusive_icon {
+    background-image: url(https://cdn.jsdelivr.net/gh/ionic-team/ionicons@5.5.2/src/svg/exit-outline.svg);
+    background-size: 15px;
 }
 
 pluto-input > button.delete_cell {
