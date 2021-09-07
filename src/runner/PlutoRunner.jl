@@ -139,8 +139,16 @@ function sanitize_expr(vec::AbstractVector)
     Expr(:vect, sanitize_expr.(vec)...)
 end
 
+function sanitize_expr(tuple::Tuple)
+    Expr(:tuple, sanitize_expr.(tuple)...)
+end
+
 function sanitize_expr(mod::Module)
     fullname(mod) |> wrap_dot
+end
+
+function sanitize_expr(pair::Pair)
+    sanitize_expr(pair.first) => sanitize_expr(pair.second)
 end
 
 # An instanciation of a struct as part of an Expr
@@ -1051,6 +1059,12 @@ end
 # This is similar to how Requires.jl works, except we don't use a callback, we just check every time.
 const integrations = Integration[
     Integration(
+        id = Base.PkgId(UUID("0c5d862f-8b57-4792-8d23-62f2024744c7"), "Symbolics"),
+        code = quote
+            pluto_showable(::MIME"application/vnd.pluto.tree+object", ::Symbolics.Arr) = false
+        end,
+    ),
+    Integration(
         id = Base.PkgId(UUID("bd369af6-aec1-5ad0-b16a-f7cc5008161c"), "Tables"),
         code = quote
             function maptruncated(f::Function, xs, filler, limit; truncate=true)
@@ -1562,7 +1576,7 @@ function Logging.shouldlog(::PlutoLogger, level, _module, _...)
     # Accept logs
     # - From the user's workspace module
     # - Info level and above for other modules
-    startswith(String(nameof(_module)), "workspace") || convert(Logging.LogLevel, level) >= Logging.Info
+    (_module isa Module && startswith(String(nameof(_module)), "workspace")) || convert(Logging.LogLevel, level) >= Logging.Info
 end
 Logging.min_enabled_level(::PlutoLogger) = Logging.Debug
 Logging.catch_exceptions(::PlutoLogger) = false
