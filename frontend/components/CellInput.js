@@ -144,6 +144,7 @@ export const CellInput = ({
     notebook_id,
     running_disabled,
     cell_dependencies,
+    notebook_exclusive,
 }) => {
     let pluto_actions = useContext(PlutoContext)
 
@@ -169,6 +170,7 @@ export const CellInput = ({
         }, [on_change])
     )
 
+    const toggle_notebook_exclusive = async () => await pluto_actions.toggle_notebook_exclusive(cell_id)
     useLayoutEffect(() => {
         const keyMapSubmit = () => {
             on_submit()
@@ -305,6 +307,7 @@ export const CellInput = ({
             { key: "Ctrl-Delete", run: keyMapDelete },
             { key: "Backspace", run: keyMapBackspace },
             { key: "Ctrl-Backspace", run: keyMapBackspace },
+            { key: "Ctrl-e", run: toggle_notebook_exclusive },
         ]
 
         let DOCS_UPDATER_VERBOSE = true
@@ -496,12 +499,12 @@ export const CellInput = ({
 
     return html`
         <pluto-input ref=${dom_node_ref} class="CodeMirror">
-            <${InputContextMenu} on_delete=${on_delete} cell_id=${cell_id} run_cell=${on_submit} running_disabled=${running_disabled} />
+            <${InputContextMenu} on_delete=${on_delete} cell_id=${cell_id} run_cell=${on_submit} running_disabled=${running_disabled} notebook_exclusive=${notebook_exclusive} toggle_notebook_exclusive=${toggle_notebook_exclusive}/>
         </pluto-input>
     `
 }
 
-const InputContextMenu = ({ on_delete, cell_id, run_cell, running_disabled }) => {
+const InputContextMenu = ({ on_delete, cell_id, run_cell, running_disabled, notebook_exclusive, toggle_notebook_exclusive}) => {
     const timeout = useRef(null)
     let pluto_actions = useContext(PlutoContext)
     const [open, setOpen] = useState(false)
@@ -533,6 +536,12 @@ const InputContextMenu = ({ on_delete, cell_id, run_cell, running_disabled }) =>
                   >
                       ${running_disabled ? html`<span class="enable_cell_icon" />` : html`<span class="disable_cell_icon" />`}
                       ${running_disabled ? html`<b>Enable cell</b>` : html`Disable cell`}
+                  </li>
+                  <li 
+                      onClick=${toggle_notebook_exclusive} title="Make this cell run only within this notebook"
+                  >
+                      ${notebook_exclusive ? html`<span class="disable_notebook_exclusive_icon" />` : html`<span class="enable_notebook_exclusive_icon" />`}
+                      ${notebook_exclusive ? html`Make open` : html`Make exclusive`}
                   </li>
                   <li class="coming_soon" title=""><span class="bandage_icon" /><em>Coming soon…</em></li>
               </ul>`
