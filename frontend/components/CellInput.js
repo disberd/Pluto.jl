@@ -44,6 +44,9 @@ import {
     indentUnit,
     StateField,
     StateEffect,
+    markdown,
+    html as htmlLang,
+    javascript,
 } from "../imports/CodemirrorPlutoSetup.js"
 import { pluto_autocomplete } from "./CellInput/pluto_autocomplete.js"
 import { NotebookpackagesFacet, pkgBubblePlugin } from "./CellInput/pkg_bubble_plugin.js"
@@ -67,8 +70,7 @@ export const pluto_syntax_colors = HighlightStyle.define([
     { tag: tags.comment, color: "#e96ba8", fontStyle: "italic" },
     { tag: tags.atom, color: "#815ba4" },
     { tag: tags.number, color: "#815ba4" },
-    // { tag: tags.property, color: "#48b685" },
-    // { tag: tags.attribute, color: "#48b685" },
+    { tag: tags.bracket, color: "#48b685" },
     { tag: tags.keyword, color: "#ef6155" },
     { tag: tags.string, color: "#da5616" },
     { tag: tags.variableName, color: "#5668a4", fontWeight: 700 },
@@ -79,7 +81,28 @@ export const pluto_syntax_colors = HighlightStyle.define([
     { tag: tags.tagName, color: "#ef6155" },
     { tag: tags.link, color: "#815ba4" },
     { tag: tags.invalid, color: "#000", background: "#ef6155" },
-    // ...Object.keys(tags).map((x) => ({ tag: x, color: x })),
+    // Object.keys(tags).map((x) => ({ tag: x, color: x })),
+    // Markdown
+    { tag: tags.heading, color: "#0e2bb9", fontWeight: 500 },
+    { tag: tags.heading1, color: "#0e2bb9", fontWeight: 500, fontSize: "1.5em" },
+    { tag: tags.heading2, color: "red", fontWeight: 400, fontSize: "1.4em" },
+    { tag: tags.heading3, color: "red", fontWeight: 400, fontSize: "1.25em" },
+    { tag: tags.heading4, color: "red", fontWeight: 400, fontSize: "1.1em" },
+    { tag: tags.heading5, color: "red", fontWeight: 400, fontSize: "1em" },
+    { tag: tags.heading6, color: "red", fontWeight: "bold", fontSize: "0.8em" },
+    { tag: tags.url, color: "#48b685", textDecoration: "underline" },
+    { tag: tags.quote, color: "#444", fontStyle: "italic" },
+    { tag: tags.literal, color: "grey", fontWeight: 700 },
+    // HTML
+    { tag: tags.tagName, color: "darkblue", fontWeight: 700 },
+    { tag: tags.attributeName, color: "darkblue", fontWeight: 400 },
+    { tag: tags.attributeValue, color: "orange", fontWeight: 700 },
+    { tag: tags.angleBracket, color: "black", fontWeight: 700 },
+    { tag: tags.content, color: "darkgrey", fontWeight: 400 },
+    { tag: tags.documentMeta, color: "grey", fontStyle: "italic" },
+    // CSS
+    { tag: tags.className, color: "grey", fontWeight: "bold" },
+
 ])
 
 const getValue6 = (/** @type {EditorView} */ cm) => cm.state.doc.toString()
@@ -342,7 +365,6 @@ export const CellInput = ({
                     nbpkg_compartment,
                     used_variables_compartment,
                     editable_compartment,
-
                     pkgBubblePlugin({ pluto_actions, notebook_id }),
                     pluto_syntax_colors,
                     lineNumbers(),
@@ -389,7 +411,10 @@ export const CellInput = ({
                     drag_n_drop_plugin(on_drag_drop_events),
                     EditorState.tabSize.of(4),
                     indentUnit.of("\t"),
-                    julia_andrey(),
+                    julia_andrey,
+                    markdown(),
+                    htmlLang(), //Provides tag closing!,
+                    javascript(),
                     go_to_definition_plugin,
                     pluto_autocomplete({
                         request_autocomplete: async ({ text }) => {
@@ -427,7 +452,7 @@ export const CellInput = ({
         dom_node_ref.current.CodeMirror = newcm.dom.CodeMirror = {
             getValue: () => newcm.state.doc.toString(),
             setValue: (value) => newcm.dispatch({
-                changes: {from: 0, to: newcm.state.doc.length, insert: value}
+                changes: { from: 0, to: newcm.state.doc.length, insert: value },
             })
         }
 
