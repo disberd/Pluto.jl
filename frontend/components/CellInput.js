@@ -457,7 +457,7 @@ export const CellInput = ({
 
         // For use from useDropHandler
         // @ts-ignore
-        newcm.dom.CodeMirror = {
+        dom_node_ref.current.CodeMirror = newcm.dom.CodeMirror = {
             getValue: () => getValue6(newcm),
             setValue: (x) => setValue6(newcm, x),
         }
