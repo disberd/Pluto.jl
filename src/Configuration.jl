@@ -34,9 +34,11 @@ The HTTP server options. See [`SecurityOptions`](@ref) for additional settings.
 - `show_file_system::Bool = true`
 - `notebook_path_suggestion::String = notebook_path_suggestion()`
 - `disable_writing_notebook_files::Bool = false`
+- `auto_reload_from_file::Bool = false` Watch notebook files for outside changes and update running notebook state automatically
+- `auto_reload_from_file_cooldown::Real = 0.5` Experimental, will be removed
+- `auto_reload_from_file_ignore_pkg::Bool = false` Experimental flag, will be removed
 - `notebook::Union{Nothing,String} = nothing`
 - `simulated_lag::Real=0.0`
-- `auto_reload_notebook_from_file::Bool = false`
 """
 @option mutable struct ServerOptions
     root_url::Union{Nothing,String} = nothing
@@ -47,10 +49,12 @@ The HTTP server options. See [`SecurityOptions`](@ref) for additional settings.
     show_file_system::Bool = true
     notebook_path_suggestion::String = notebook_path_suggestion()
     disable_writing_notebook_files::Bool = false
+    auto_reload_from_file::Bool = false
+    auto_reload_from_file_cooldown::Real = 0.4
+    auto_reload_from_file_ignore_pkg::Bool = false
     notebook::Union{Nothing,String, Vector{<: String}} = nothing
     init_with_file_viewer::Bool=false
     simulated_lag::Real=0.0
-    auto_reload_notebook_from_file::Bool = false
 end
 
 """
