@@ -55,7 +55,7 @@ import {
     PostgreSQL,
     python,
     pythonLanguage,
-} from "https://cdn.jsdelivr.net/gh/JuliaPluto/codemirror-pluto-setup@2072d6b/dist/index.es.min.js"
+} from "https://cdn.jsdelivr.net/gh/JuliaPluto/codemirror-pluto-setup@0.19.2/dist/index.es.min.js"
 
 const htmlParser = htmlLanguage.parser
 const mdParser = markdownLanguage.parser

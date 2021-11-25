@@ -266,6 +266,7 @@ end
 struct Failure <: Result
 	error
 end
+struct Skipped <: Result end
 
 """We still have 'unresolved' macrocalls, use the current and maybe previous workspace to do macro-expansions.
 
@@ -309,7 +310,7 @@ function resolve_topology(
 
 	function analyze_macrocell(cell::Cell)
 		if unresolved_topology.nodes[cell].macrocalls ⊆ ExpressionExplorer.can_macroexpand
-			return nothing
+			return Skipped()
 		end
 
 		result = macroexpand_cell(cell)
@@ -352,7 +353,9 @@ function resolve_topology(
 				# set function_wrapped to the function wrapped analysis of the expanded expression.
 				new_codes[cell] = ExprAnalysisCache(unresolved_topology.codes[cell]; forced_expr_id, function_wrapped)
 			else
-				@debug "Expansion failed" err=result.error
+				if result isa Failure
+					@debug "Expansion failed" err=result.error
+				end
 				push!(still_unresolved_nodes, cell)
 			end
 	end
@@ -420,6 +423,24 @@ function update_save_run!(session::ServerSession, notebook::Notebook, cells::Arr
 		
 		cd(original_pwd)
 		setdiff(cells, to_run_offline)
+	end
+	
+	# this setting is not officially supported (default is `false`), so you can skip this block when reading the code
+	if !session.options.evaluation.run_notebook_on_load && prerender_text
+		# these cells do something like settings up an environment, we should always run them
+		setup_cells = filter(notebook.cells) do c
+			cell_precedence_heuristic(notebook.topology, c) < DEFAULT_PRECEDENCE_HEURISTIC
+		end
+		
+		# for the remaining cells, clear their topology info so that they won't run as dependencies
+		for cell in setdiff(to_run_online, setup_cells)
+			delete!(notebook.topology.nodes, cell)
+			delete!(notebook.topology.codes, cell)
+			delete!(notebook.topology.unresolved_cells, cell)
+		end
+		
+		# and don't run them
+		to_run_online = to_run_online ∩ setup_cells
 	end
 
 	maybe_async(run_async) do
