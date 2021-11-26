@@ -110,8 +110,8 @@ function save_notebook(io, notebook::Notebook)
     println(io, "# ", PLUTO_VERSION_STR)
     # Anything between the version string and the first UUID delimiter will be ignored by the notebook loader.
     println(io, "")
-    println(io, "using Markdown")
-    println(io, "using InteractiveUtils")
+    println(io, "# using Markdown")
+    println(io, "# using InteractiveUtils")
     # Super Advanced Code Analysis™ to add the @bind macro to the saved file if it's used somewhere.
     if any(occursin("@bind", c.code) for c in notebook.cells)
         println(io, "")
