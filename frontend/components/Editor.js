@@ -470,8 +470,8 @@ export class Editor extends Component {
                     notebook.cell_inputs[cell_id].code_folded = newFolded
                 })
             },
-            toggle_notebook_exclusive: async (cell_id) => {
-                const newVal = !this.state.notebook.cell_inputs[cell_id].notebook_exclusive
+            toggle_notebook_exclusive: async (cell_id, value) => {
+                const newVal = value ?? !this.state.notebook.cell_inputs[cell_id].notebook_exclusive
                 await update_notebook((notebook) => {
                     notebook.cell_inputs[cell_id].notebook_exclusive = newVal
                 })
