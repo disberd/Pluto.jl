@@ -40,7 +40,8 @@ const exclusive_regexps = [
     /@code_native/,
     /@code_llvm/,
     /@code_lowered/,
-    /ToC\(.*\)/
+    /ToC\(.*\)/,
+    /^let/
 ]
 const default_path = "..."
 const DEBUG_DIFFING = false
