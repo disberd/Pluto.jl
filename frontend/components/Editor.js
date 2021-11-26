@@ -36,6 +36,10 @@ const exclusive_regexps = [
     /^md"/,
     /@benchmark/,
     /@test/,
+    /@code_warntype/,
+    /@code_native/,
+    /@code_llvm/,
+    /@code_lowered/,
     /ToC\(.*\)/
 ]
 const default_path = "..."
