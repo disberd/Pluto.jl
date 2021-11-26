@@ -32,6 +32,12 @@ import { slider_server_actions, nothing_actions } from "../common/SliderServerCl
 import { ProgressBar } from "./ProgressBar.js"
 import { IsolatedCell } from "./Cell.js"
 
+const exclusive_regexps = [
+    /^md"/,
+    /@benchmark/,
+    /@test/,
+    /ToC\(.*\)/
+]
 const default_path = "..."
 const DEBUG_DIFFING = false
 let pending_local_updates = 0
@@ -491,6 +497,13 @@ export class Editor extends Component {
                     await update_notebook((notebook) => {
                         for (let cell_id of cell_ids) {
                             if (this.state.cell_inputs_local[cell_id]) {
+                                const code = this.state.cell_inputs_local[cell_id].code
+                                for (const re of exclusive_regexps) {
+                                    if (re.test(code)) {
+                                        this.actions.toggle_notebook_exclusive(cell_id, true)
+                                        break
+                                    }
+                                }
                                 notebook.cell_inputs[cell_id].code = this.state.cell_inputs_local[cell_id].code
                             }
                         }
