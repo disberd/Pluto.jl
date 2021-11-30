@@ -508,9 +508,14 @@ export class Editor extends Component {
                                 const code = this.state.cell_inputs_local[cell_id].code
                                 for (const re of exclusive_regexps) {
                                     if (re.test(code)) {
-                                        this.actions.toggle_notebook_exclusive(cell_id, true)
+                                        // this.actions.toggle_notebook_exclusive(cell_id, true)
+                                        notebook.cell_inputs[cell_id].notebook_exclusive = true
                                         break
                                     }
+                                }
+                                // Check if it's just markdown header and eventually hide the cell
+                                if (/^md"""\n#/.test(code)) {
+                                    notebook.cell_inputs[cell_id].code_folded = true
                                 }
                                 notebook.cell_inputs[cell_id].code = this.state.cell_inputs_local[cell_id].code
                             }
