@@ -754,7 +754,13 @@ const table_column_display_limit_increase = 30
 
 const tree_display_extra_items = Dict{UUID,Dict{ObjectDimPair,Int64}}()
 
-function formatted_result_of(cell_id::UUID, ends_with_semicolon::Bool, showmore::Union{ObjectDimPair,Nothing}=nothing, workspace::Module=Main)::NamedTuple{(:output_formatted, :errored, :interrupted, :process_exited, :runtime, :published_objects, :has_pluto_hook_features),Tuple{PlutoRunner.MimedOutput,Bool,Bool,Bool,Union{UInt64,Nothing},Dict{String,Any},Bool}}
+function formatted_result_of(
+    cell_id::UUID, 
+    ends_with_semicolon::Bool, 
+    known_published_objects::Vector{String}=String[],
+    showmore::Union{ObjectDimPair,Nothing}=nothing, 
+    workspace::Module=Main,
+)::NamedTuple{(:output_formatted, :errored, :interrupted, :process_exited, :runtime, :published_objects, :has_pluto_hook_features),Tuple{PlutoRunner.MimedOutput,Bool,Bool,Bool,Union{UInt64,Nothing},Dict{String,Any},Bool}}
     load_integrations_if_needed()
     currently_running_cell_id[] = cell_id
 
@@ -775,13 +781,22 @@ function formatted_result_of(cell_id::UUID, ends_with_semicolon::Bool, showmore:
     else
         ("", MIME"text/plain"())
     end
+    
+    published_objects = get(cell_published_objects, cell_id, Dict{String,Any}())
+    
+    for k in known_published_objects
+        if haskey(published_objects, k)
+            published_objects[k] = nothing
+        end
+    end
+    
     return (
         output_formatted = output_formatted,
         errored = errored, 
         interrupted = false, 
         process_exited = false, 
         runtime = get(cell_runtimes, cell_id, nothing),
-        published_objects = get(cell_published_objects, cell_id, Dict{String,Any}()),
+        published_objects = published_objects,
         has_pluto_hook_features = has_pluto_hook_features,
     )
 end
@@ -1301,12 +1316,14 @@ const integrations = Integration[
             @assert v"1.0.0" <= AbstractPlutoDingetjes.MY_VERSION < v"2.0.0"
             initial_value_getter_ref[] = AbstractPlutoDingetjes.Bonds.initial_value
             transform_value_ref[] = AbstractPlutoDingetjes.Bonds.transform_value
-            
+            possible_bond_values_ref[] = AbstractPlutoDingetjes.Bonds.possible_values
+
             push!(supported_integration_features,
                 AbstractPlutoDingetjes,
                 AbstractPlutoDingetjes.Bonds,
                 AbstractPlutoDingetjes.Bonds.initial_value,
                 AbstractPlutoDingetjes.Bonds.transform_value,
+                AbstractPlutoDingetjes.Bonds.possible_values,
             )
         end,
     ),
@@ -1614,6 +1631,31 @@ function transform_bond_value(s::Symbol, value_from_js)
     end
 end
 
+function possible_bond_values(s::Symbol)
+    element = registered_bond_elements[s]
+    possible_values = possible_bond_values_ref[](element)
+
+    if possible_values === :NotGiven
+        # Short-circuit to avoid the checks below, which only work if AbstractPlutoDingetjes is loaded.
+        :NotGiven
+    elseif possible_values isa AbstractPlutoDingetjes.Bonds.InfinitePossibilities
+        # error("Bond \"$s\" has an unlimited number of possible values, try changing the `@bind` to something with a finite number of possible values like `PlutoUI.CheckBox(...)` or `PlutoUI.Slider(...)` instead.")
+        :InfinitePossibilities
+    elseif (possible_values isa AbstractPlutoDingetjes.Bonds.NotGiven)
+        # error("Bond \"$s\" did not specify its possible values with `AbstractPlutoDingetjes.Bond.possible_values()`. Try using PlutoUI for the `@bind` values.")
+        
+        # If you change this, change it everywhere in this file.
+        :NotGiven
+    else
+        make_distributed_serializable(possible_values)
+    end
+end
+
+make_distributed_serializable(x::Any) = x
+make_distributed_serializable(x::Union{AbstractVector,AbstractSet,Base.Generator}) = collect(x)
+make_distributed_serializable(x::Union{Vector,Set,OrdinalRange}) = x
+
+
 """
 _“The name is Bond, James Bond.”_
 
@@ -1656,6 +1698,7 @@ end
 
 const initial_value_getter_ref = Ref{Function}(element -> missing)
 const transform_value_ref = Ref{Function}((element, x) -> x)
+const possible_bond_values_ref = Ref{Function}((_args...; _kwargs...) -> :NotGiven)
 
 """
     `@bind symbol element`
