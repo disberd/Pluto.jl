@@ -15,7 +15,6 @@ import {
     indentLess,
     tags,
     HighlightStyle,
-    autocompletion,
     lineNumbers,
     highlightSpecialChars,
     foldGutter,
@@ -30,7 +29,6 @@ import {
     searchKeymap,
     foldKeymap,
     commentKeymap,
-    completionKeymap,
     syntaxTree,
     Decoration,
     ViewUpdate,
@@ -55,7 +53,8 @@ import {
     PostgreSQL,
     python,
     pythonLanguage,
-} from "https://cdn.jsdelivr.net/gh/JuliaPluto/codemirror-pluto-setup@0.19.2/dist/index.es.min.js"
+    autocomplete,
+} from "https://cdn.jsdelivr.net/gh/JuliaPluto/codemirror-pluto-setup@0.19.4/dist/index.es.min.js"
 
 const htmlParser = htmlLanguage.parser
 const mdParser = markdownLanguage.parser
@@ -64,12 +63,12 @@ const sqlLang = sql({ config: { dialect: PostgreSQL } })
 const pythonParser = pythonLanguage.parser
 
 const juliaWrapper = parseMixed((node, input) => {
-    console.log({...input}, {...node})
+    console.log({ ...input }, { ...node })
     if (!["TripleString", "String", "CommandString"].includes(node.type.name)) {
         return null
     }
     const offset = node.name === "TripleString" ? 3 : 1
-    const defaultOverlay = [{ from: node.from + offset, to: Math.min(node.to - offset, input.length)}]
+    const defaultOverlay = [{ from: node.from + offset, to: Math.min(node.to - offset, input.length) }]
     console.log(JSON.stringify(defaultOverlay))
 
     if (defaultOverlay[0].from >= defaultOverlay[0].to) {
@@ -101,7 +100,7 @@ const juliaWrapper = parseMixed((node, input) => {
     } else if (tag === "@javascript") {
         return {
             parser: javascriptLanguage.parser,
-            overlay: defaultOverlay
+            overlay: defaultOverlay,
         }
     } else if (tag === "py") {
         return {
@@ -161,7 +160,6 @@ export {
     indentLess,
     tags,
     HighlightStyle,
-    autocompletion,
     lineNumbers,
     highlightSpecialChars,
     foldGutter,
@@ -176,7 +174,6 @@ export {
     searchKeymap,
     foldKeymap,
     commentKeymap,
-    completionKeymap,
     syntaxTree,
     Decoration,
     ViewUpdate,
@@ -196,4 +193,5 @@ export {
     javascriptLanguage,
     sqlLang,
     python,
+    autocomplete,
 }

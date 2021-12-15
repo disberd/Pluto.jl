@@ -22,7 +22,6 @@ import {
     indentLess,
     tags,
     HighlightStyle,
-    autocompletion,
     lineNumbers,
     highlightSpecialChars,
     foldGutter,
@@ -36,7 +35,6 @@ import {
     searchKeymap,
     foldKeymap,
     commentKeymap,
-    completionKeymap,
     syntaxTree,
     Decoration,
     ViewUpdate,
@@ -50,12 +48,13 @@ import {
     javascript,
     sqlLang,
     python,
+    autocomplete,
 } from "../imports/CodemirrorPlutoSetup.js"
 import { pluto_autocomplete } from "./CellInput/pluto_autocomplete.js"
 import { NotebookpackagesFacet, pkgBubblePlugin } from "./CellInput/pkg_bubble_plugin.js"
 import { awesome_line_wrapping } from "./CellInput/awesome_line_wrapping.js"
 import { drag_n_drop_plugin } from "./useDropHandler.js"
-import { cell_movement_plugin } from "./CellInput/cell_movement_plugin.js"
+import { cell_movement_plugin, prevent_holding_a_key_from_doing_things_across_cells } from "./CellInput/cell_movement_plugin.js"
 import { pluto_paste_plugin } from "./CellInput/pluto_paste_plugin.js"
 import { bracketMatching } from "./CellInput/block_matcher_plugin.js"
 import { cl } from "../common/ClassTable.js"
@@ -216,7 +215,7 @@ export const CellInput = ({
             return true
         }
 
-        let select_autocomplete_command = completionKeymap.find((keybinding) => keybinding.key === "Enter")
+        let select_autocomplete_command = autocomplete.completionKeymap.find((keybinding) => keybinding.key === "Enter")
         let keyMapTab = (/** @type {EditorView} */ cm) => {
             // This will return true if the autocomplete select popup is open
             if (select_autocomplete_command.run(cm)) {
@@ -369,6 +368,14 @@ export const CellInput = ({
                     nbpkg_compartment,
                     used_variables_compartment,
                     editable_compartment,
+
+                    // This is waaaay in front of the keys it is supposed to override,
+                    // Which is necessary because it needs to run before *any* keymap,
+                    // as the first keymap will activate the keymap extension which will attach the
+                    // keymap handlers at that point, which is likely before this extension.
+                    // TODO Use https://codemirror.net/6/docs/ref/#state.Prec when added to pluto-codemirror-setup
+                    prevent_holding_a_key_from_doing_things_across_cells,
+
                     pkgBubblePlugin({ pluto_actions, notebook_id }),
                     ScopeStateField,
                     pluto_syntax_colors,
@@ -543,12 +550,19 @@ export const CellInput = ({
 
     return html`
         <pluto-input ref=${dom_node_ref} translate=${false} class="CodeMirror">
-            <${InputContextMenu} on_delete=${on_delete} cell_id=${cell_id} run_cell=${on_submit} running_disabled=${running_disabled} notebook_exclusive=${notebook_exclusive} toggle_notebook_exclusive=${toggle_notebook_exclusive}/>
+            <${InputContextMenu}
+                on_delete=${on_delete}
+                cell_id=${cell_id}
+                run_cell=${on_submit}
+                running_disabled=${running_disabled}
+                notebook_exclusive=${notebook_exclusive}
+                toggle_notebook_exclusive=${toggle_notebook_exclusive}
+            />
         </pluto-input>
     `
 }
 
-const InputContextMenu = ({ on_delete, cell_id, run_cell, running_disabled, notebook_exclusive, toggle_notebook_exclusive}) => {
+const InputContextMenu = ({ on_delete, cell_id, run_cell, running_disabled, notebook_exclusive, toggle_notebook_exclusive }) => {
     const timeout = useRef(null)
     let pluto_actions = useContext(PlutoContext)
     const [open, setOpen] = useState(false)
@@ -586,9 +600,7 @@ const InputContextMenu = ({ on_delete, cell_id, run_cell, running_disabled, note
                       ${running_disabled ? html`<span class="enable_cell_icon" />` : html`<span class="disable_cell_icon" />`}
                       ${running_disabled ? html`<b>Enable cell</b>` : html`Disable cell`}
                   </li>
-                  <li 
-                      onClick=${toggle_notebook_exclusive} title="Make this cell run only within this notebook"
-                  >
+                  <li onClick=${toggle_notebook_exclusive} title="Make this cell run only within this notebook">
                       ${notebook_exclusive ? html`<span class="disable_notebook_exclusive_icon" />` : html`<span class="enable_notebook_exclusive_icon" />`}
                       ${notebook_exclusive ? html`Make open` : html`Make exclusive`}
                   </li>
