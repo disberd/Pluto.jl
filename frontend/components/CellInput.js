@@ -13,7 +13,6 @@ import {
     Compartment,
     EditorView,
     placeholder,
-    julia_andrey,
     keymap,
     history,
     historyKeymap,
@@ -43,13 +42,10 @@ import {
     indentUnit,
     StateField,
     StateEffect,
-    markdown,
-    html as htmlLang,
-    javascript,
-    sqlLang,
-    python,
     autocomplete,
 } from "../imports/CodemirrorPlutoSetup.js"
+
+import { markdown, html as htmlLang, javascript, sqlLang, python, julia_andrey } from "./CellInput/mixedParsers.js"
 import { pluto_autocomplete } from "./CellInput/pluto_autocomplete.js"
 import { NotebookpackagesFacet, pkgBubblePlugin } from "./CellInput/pkg_bubble_plugin.js"
 import { awesome_line_wrapping } from "./CellInput/awesome_line_wrapping.js"
@@ -122,12 +118,11 @@ let useCompartment = (/** @type {import("../imports/Preact.js").Ref<EditorView>}
     let compartment = useRef(new Compartment())
     let initial_value = useRef(compartment.current.of(value))
 
-    compartment.current.of,
-        useLayoutEffect(() => {
-            codemirror_ref.current?.dispatch?.({
-                effects: compartment.current.reconfigure(value),
-            })
-        }, [value])
+    useLayoutEffect(() => {
+        codemirror_ref.current?.dispatch?.({
+            effects: compartment.current.reconfigure(value),
+        })
+    }, [value])
 
     return initial_value.current
 }
@@ -426,12 +421,12 @@ export const CellInput = ({
                     drag_n_drop_plugin(on_drag_drop_events),
                     EditorState.tabSize.of(4),
                     indentUnit.of("\t"),
-                    julia_andrey,
+                    julia_andrey(),
                     markdown(),
                     htmlLang(), //Provides tag closing!,
                     javascript(),
                     python(),
-                    //sqlLang,
+                    sqlLang,
                     go_to_definition_plugin,
                     pluto_autocomplete({
                         request_autocomplete: async ({ text }) => {
