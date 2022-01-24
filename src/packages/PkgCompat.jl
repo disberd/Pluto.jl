@@ -110,11 +110,11 @@ project_file(x::AbstractString) = joinpath(x, "Project.toml")
 manifest_file(x::AbstractString) = joinpath(x, "Manifest.toml")
 project_file(ctx::PkgContext) = joinpath(env_dir(ctx), "Project.toml")
 manifest_file(ctx::PkgContext) = joinpath(env_dir(ctx), "Manifest.toml")
-function read_project_file(x)
+function read_project_file(x)::String
 	path = project_file(x)
 	isfile(path) ? read(path, String) : ""
 end
-function read_manifest_file(x)
+function read_manifest_file(x)::String
 	path = manifest_file(x)
 	isfile(path) ? read(path, String) : ""
 end
@@ -175,30 +175,43 @@ function refresh_registry_cache()
 	_parsed_registries[] = _get_registries()
 end
 
-const _updated_registries_compat = Ref(false)
+# ⚠️✅ Internal API with fallback
+const _updated_registries_compat = @static if isdefined(Pkg, :UPDATED_REGISTRY_THIS_SESSION) && Pkg.UPDATED_REGISTRY_THIS_SESSION isa Ref{Bool}
+	Pkg.UPDATED_REGISTRY_THIS_SESSION
+else
+	Ref(false)
+end
 
-# ⚠️✅ Internal API with good fallback
-function update_registries(ctx)
-	@static if isdefined(Pkg, :Types) && isdefined(Pkg.Types, :update_registries)
-		Pkg.Types.update_registries(ctx)
-	else
-		if !_updated_registries_compat[]
-			_updated_registries_compat[] = true
-			Pkg.Registry.update()
+# ✅ Public API
+function update_registries(; force::Bool=false)
+	if force || !_updated_registries_compat[]
+		Pkg.Registry.update()
+		try
+			refresh_registry_cache()
+		catch
 		end
+		_updated_registries_compat[] = true		
 	end
 end
+
+
+###
+# Instantiate
+###
 
 # ⚠️✅ Internal API with fallback
 function instantiate(ctx; update_registry::Bool)
 	@static if hasmethod(Pkg.instantiate, Tuple{}, (:update_registry,))
-		Pkg.instantiate(ctx; update_registry=update_registry)
+		Pkg.instantiate(ctx; update_registry)
 	else
 		Pkg.instantiate(ctx)
 	end
 end
 
 
+###
+# Standard Libraries
+###
 
 # (⚠️ Internal API with fallback)
 _stdlibs() = try

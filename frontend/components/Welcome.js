@@ -1,9 +1,26 @@
+import _ from "../imports/lodash.js"
 import { html, Component } from "../imports/Preact.js"
 
 import { FilePicker } from "./FilePicker.js"
 import { create_pluto_connection, fetch_pluto_releases } from "../common/PlutoConnection.js"
 import { cl } from "../common/ClassTable.js"
 import { PasteHandler } from "./PasteHandler.js"
+
+/**
+ * @typedef CombinedNotebook
+ * @type {{
+ *    path: String,
+ *    transitioning: Boolean,
+ *    notebook_id: String?,
+ * }}
+ */
+
+/**
+ *
+ * @param {string} path
+ * @param {string?} notebook_id
+ * @returns {CombinedNotebook}
+ */
 
 const create_empty_notebook = (path, notebook_id = null) => {
     return {
@@ -73,6 +90,11 @@ export const process_path_or_url = async (path_or_url) => {
             path_or_url: u.href,
         }
     } catch (ex) {
+        /* Remove eventual single/double quotes from the path if they surround it, see
+          https://github.com/fonsp/Pluto.jl/issues/1639 */
+        if (path_or_url[path_or_url.length - 1] === '"' && path_or_url[0] === '"') {
+            path_or_url = path_or_url.slice(1, -1) /* Remove first and last character */
+        }
         return {
             type: "path",
             path_or_url: path_or_url,
@@ -92,10 +114,10 @@ export class Welcome extends Component {
         this.state = {
             // running_notebooks: null,
             // recent_notebooks: null,
-            combined_notebooks: null, // will become an array
+            combined_notebooks: /** @type {Array<CombinedNotebook>} */ (null), // will become an array
             connected: false,
         }
-        const set_notebook_state = (path, new_state_props) => {
+        const set_notebook_state = (this.set_notebook_state = (path, new_state_props) => {
             this.setState((prevstate) => {
                 return {
                     combined_notebooks: prevstate.combined_notebooks.map((nb) => {
@@ -103,7 +125,7 @@ export class Welcome extends Component {
                     }),
                 }
             })
-        }
+        })
 
         const on_update = ({ message, type }) => {
             if (type === "notebook_list") {
@@ -158,14 +180,13 @@ export class Welcome extends Component {
             this.client.send("get_all_notebooks", {}, {}).then(({ message }) => {
                 const running = message.notebooks.map((nb) => create_empty_notebook(nb.path, nb.notebook_id))
 
-                // we are going to construct the combined list:
-                const combined_notebooks = [...running] // shallow copy but that's okay
-                get_stored_recent_notebooks().forEach((stored) => {
-                    if (!running.some((nb) => nb.path === stored.path)) {
-                        // if not already in the list...
-                        combined_notebooks.push(stored) // ...add it.
-                    }
-                })
+                const recent_notebooks = get_stored_recent_notebooks()
+
+                // show running notebooks first, in the order defined by the recent notebooks, then recent notebooks
+                const combined_notebooks = [
+                    ..._.sortBy(running, [(nb) => _.findIndex([...recent_notebooks, ...running], (r) => r.path === nb.path)]),
+                    ..._.differenceBy(recent_notebooks, running, (nb) => nb.path),
+                ]
 
                 this.setState({ combined_notebooks: combined_notebooks })
 
@@ -175,22 +196,23 @@ export class Welcome extends Component {
             fetch_pluto_releases()
                 .then((releases) => {
                     const local = this.client.version_info.pluto
-                    const latest = releases[releases.length-1].tag_name
+                    const latest = releases[releases.length - 1].tag_name
                     console.log(`Pluto version ${local}`)
-                    const local_index = releases.findIndex(r => r.tag_name === local)
-                    if(local_index !== -1) {
-                        const updates = releases.slice(local_index+1)
-                        const recommended_updates = updates.filter(r => r.body.toLowerCase().includes("recommended update"))
-                        if(recommended_updates.length > 0){
+                    const local_index = releases.findIndex((r) => r.tag_name === local)
+                    if (local_index !== -1) {
+                        const updates = releases.slice(local_index + 1)
+                        const recommended_updates = updates.filter((r) => r.body.toLowerCase().includes("recommended update"))
+                        if (recommended_updates.length > 0) {
                             console.log(`Newer version ${latest} is available`)
-                            alert(
-                                "A new version of Pluto.jl is available! 🎉\n\n    You have " +
-                                    local +
-                                    ", the latest is " +
-                                    latest +
-                                    '.\n\nYou can update Pluto.jl using the julia package manager:\n    import Pkg; Pkg.update("Pluto")\nAfterwards, exit Pluto.jl and restart julia.'
-                            )
-
+                            if (!this.client.version_info.dismiss_update_notification) {
+                                alert(
+                                    "A new version of Pluto.jl is available! 🎉\n\n    You have " +
+                                        local +
+                                        ", the latest is " +
+                                        latest +
+                                        '.\n\nYou can update Pluto.jl using the julia package manager:\n    import Pkg; Pkg.update("Pluto")\nAfterwards, exit Pluto.jl and restart julia.'
+                                )
+                            }
                         }
                     }
                 })
@@ -281,7 +303,6 @@ export class Welcome extends Component {
         if (this.state.combined_notebooks == null) {
             recents = html`<li><em>Loading...</em></li>`
         } else {
-            console.log(this.state.combined_notebooks)
             const all_paths = this.state.combined_notebooks.map((nb) => nb.path)
             recents = this.state.combined_notebooks.map((nb) => {
                 const running = nb.notebook_id != null
@@ -296,7 +317,17 @@ export class Welcome extends Component {
                     <button onclick=${() => this.on_session_click(nb)} title=${running ? "Shut down notebook" : "Start notebook in background"}>
                         <span></span>
                     </button>
-                    <a href=${running ? link_edit(nb.notebook_id) : link_open_path(nb.path)} title=${nb.path}>${shortest_path(nb.path, all_paths)}</a>
+                    <a
+                        href=${running ? link_edit(nb.notebook_id) : link_open_path(nb.path)}
+                        title=${nb.path}
+                        onClick=${(e) => {
+                            document.body.classList.add("loading")
+                            this.set_notebook_state(nb.path, {
+                                transitioning: true,
+                            })
+                        }}
+                        >${shortest_path(nb.path, all_paths)}</a
+                    >
                 </li>`
             })
         }
@@ -321,6 +352,6 @@ export class Welcome extends Component {
 
 const get_stored_recent_notebooks = () => {
     const storedString = localStorage.getItem("recent notebooks")
-    const storedList = !!storedString ? JSON.parse(storedString) : []
+    const storedList = storedString != null ? JSON.parse(storedString) : []
     return storedList.map((path) => create_empty_notebook(path))
 }

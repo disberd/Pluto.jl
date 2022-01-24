@@ -2,6 +2,7 @@ import Pluto
 import Pluto.ExpressionExplorer
 import Pluto.ExpressionExplorer: SymbolsState, compute_symbolreferences, FunctionNameSignaturePair, UsingsImports, compute_usings_imports
 using Test
+import Distributed
 
 function Base.show(io::IO, s::SymbolsState)
     print(io, "SymbolsState([")
@@ -21,9 +22,13 @@ function Base.show(io::IO, s::SymbolsState)
         end
         print(io, "]")
     end
-    print(io, "], [")
-    print(io, s.macrocalls)
-    print(io, "])")
+    if !isempty(s.macrocalls)
+        print(io, "], [")
+        print(io, s.macrocalls)
+        print(io, "])")
+    else
+        print(io, ")")
+    end
 end
 
 "Calls `ExpressionExplorer.compute_symbolreferences` on the given `expr` and test the found SymbolsState against a given one, with convient syntax.
@@ -112,8 +117,8 @@ function setcode(cell, newcode)
     cell.code = newcode
 end
 
-function noerror(cell)
-    if cell.errored
+function noerror(cell; verbose=true)
+    if cell.errored && verbose
         @show cell.output.body
     end
     !cell.errored
@@ -188,3 +193,12 @@ has_embedded_pkgfiles(contents::AbstractString) =
 
 has_embedded_pkgfiles(nb::Pluto.Notebook) = 
     read(nb.path, String) |> has_embedded_pkgfiles
+
+"""
+Log an error message if there are any running processes created by Distrubted, that were not shut down.
+"""
+function verify_no_running_processes()
+    if length(Distributed.procs()) != 1
+        @error "Not all notebook processes were closed during tests!" Distributed.procs()
+    end
+end

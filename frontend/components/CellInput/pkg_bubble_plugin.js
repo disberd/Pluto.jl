@@ -1,48 +1,26 @@
 import _ from "../../imports/lodash.js"
-import { EditorView, syntaxTree, Decoration, ViewUpdate, ViewPlugin, WidgetType, Facet } from "../../imports/CodemirrorPlutoSetup.js"
-import { nbpkg_fingerprint, PkgStatusMark, PkgActivateMark, pkg_disablers } from "../PkgStatusMark.js"
+import { EditorView, syntaxTree, Decoration, ViewUpdate, ViewPlugin, Facet } from "../../imports/CodemirrorPlutoSetup.js"
+import { PkgStatusMark, PkgActivateMark } from "../PkgStatusMark.js"
+import { html } from "../../imports/Preact.js"
+import { ReactWidget } from "./ReactWidget.js"
 
 /**
  * @typedef PkgstatusmarkWidgetProps
  * @type {{ nbpkg: any, pluto_actions: any, notebook_id: string }}
  */
 
-class PkgStatusMarkWidget extends WidgetType {
-    /**
-     * @param {string} package_name
-     * @param {PkgstatusmarkWidgetProps} props
-     */
-    constructor(package_name, props) {
-        super()
-        this.package_name = package_name
-        this.props = props
-        this.on_nbpkg = console.error
-    }
-
-    eq(other) {
-        return other.package_name == this.package_name
-    }
-
-    toDOM() {
-        const b = PkgStatusMark({
-            pluto_actions: this.props.pluto_actions,
-            package_name: this.package_name,
-            // refresh_cm: () => cm.refresh(),
-            refresh_cm: () => {},
-            notebook_id: this.props.notebook_id,
-        })
-
-        console.log(`this.props.nbpkg:`, this.props.nbpkg)
-        b.on_nbpkg(this.props.nbpkg)
-        this.on_nbpkg = b.on_nbpkg
-
-        return b
-    }
-
-    ignoreEvent() {
-        return false
-    }
-}
+// This list appears multiple times in our codebase. Be sure to match edits everywhere.
+export const pkg_disablers = [
+    "Pkg.activate",
+    "Pkg.API.activate",
+    "Pkg.develop",
+    "Pkg.API.develop",
+    "Pkg.add",
+    "Pkg.API.add",
+    // https://juliadynamics.github.io/DrWatson.jl/dev/project/#DrWatson.quickactivate
+    "quickactivate",
+    "@quickactivate",
+]
 
 /**
  * @param {EditorView} view
@@ -50,14 +28,41 @@ class PkgStatusMarkWidget extends WidgetType {
  */
 function pkg_decorations(view, { pluto_actions, notebook_id, nbpkg }) {
     let widgets = []
+    let seen_packages = new Set()
+
+    const add_widget = (package_name, target) => {
+        if (package_name !== "Base" && package_name !== "Core" && !seen_packages.has(package_name)) {
+            seen_packages.add(package_name)
+            let deco = Decoration.widget({
+                widget: new ReactWidget(html`
+                    <${PkgStatusMark}
+                        key=${package_name}
+                        package_name=${package_name}
+                        pluto_actions=${pluto_actions}
+                        notebook_id=${notebook_id}
+                        nbpkg=${nbpkg}
+                    />
+                `),
+                side: 1,
+            })
+            widgets.push(deco.range(target))
+        }
+    }
+
     for (let { from, to } of view.visibleRanges) {
         let in_import = false
         let in_selected_import = false
         let is_inside_quote = false
+
+        let is_inside_rename_import = false
+        let is_renamed_package_bubbled = false
+
+        let is_inside_scoped_identifier = false
+
         syntaxTree(view.state).iterate({
             from,
             to,
-            enter: (type, from, to) => {
+            enter: (type, from, to, getNode) => {
                 // `quote ... end` or `:(...)`
                 if (type.name === "QuoteExpression" || type.name === "QuoteStatement") {
                     is_inside_quote = true
@@ -68,43 +73,72 @@ function pkg_decorations(view, { pluto_actions, notebook_id, nbpkg }) {
                 }
                 if (is_inside_quote) return
 
+                // Check for Pkg.activate() and friends
+                if (type.name === "CallExpression" || type.name === "MacroExpression") {
+                    let node = getNode()
+                    let callee = node.firstChild
+                    let callee_name = view.state.sliceDoc(callee.from, callee.to)
+
+                    if (pkg_disablers.includes(callee_name)) {
+                        let deco = Decoration.widget({
+                            widget: new ReactWidget(html` <${PkgActivateMark} package_name=${callee_name} /> `),
+                            side: 1,
+                        })
+                        widgets.push(deco.range(to))
+                    }
+                }
+
                 if (type.name === "ImportStatement") {
                     in_import = true
                 }
                 if (type.name === "SelectedImport") {
                     in_selected_import = true
                 }
-
-                // `import .X` or `import ..X`
-                if (type.name === "ScopedIdentifier") {
-                    in_import = false
-                    in_selected_import = false
-                    return false
+                if (type.name === "RenamedIdentifier") {
+                    is_inside_rename_import = true
+                }
+                // Don't show a buble next to the name `B` in `import A as B`
+                if (is_inside_rename_import && is_renamed_package_bubbled) {
+                    return
                 }
 
-                if (in_import && type.name === "Identifier") {
+                // `import .X` or `import ..X` or `import Flux.Zygote`
+                // handled when leaving the ScopedIdentifier
+                if (in_import && type.name === "ScopedIdentifier") {
+                    is_inside_scoped_identifier = true
+
+                    if (is_inside_rename_import && !is_renamed_package_bubbled) {
+                        is_renamed_package_bubbled = true
+                    }
+
+                    return
+                }
+
+                if (in_import && type.name === "Identifier" && !is_inside_scoped_identifier) {
+                    if (is_inside_rename_import && !is_renamed_package_bubbled) {
+                        is_renamed_package_bubbled = true
+                    }
+
                     let package_name = view.state.doc.sliceString(from, to)
                     // console.warn(type)
                     // console.warn("Found", package_name)
-                    if (package_name !== "Base" && package_name !== "Core") {
-                        let deco = Decoration.widget({
-                            widget: new PkgStatusMarkWidget(package_name, { pluto_actions, notebook_id, nbpkg }),
-                            side: 1,
-                        })
-                        widgets.push(deco.range(to))
-                    }
+                    add_widget(package_name, to)
 
                     if (in_selected_import) {
                         in_import = false
                     }
                 }
             },
-            leave: (type, from, to) => {
+            leave: (type, from, to, getNode) => {
                 if (type.name === "QuoteExpression" || type.name === "QuoteStatement") {
                     is_inside_quote = false
                 }
                 if (type.name === "InterpolationExpression") {
                     is_inside_quote = true
+                }
+                if (type.name === "RenamedIdentifier") {
+                    is_inside_rename_import = false
+                    is_renamed_package_bubbled = false
                 }
                 if (is_inside_quote) return
 
@@ -115,20 +149,28 @@ function pkg_decorations(view, { pluto_actions, notebook_id, nbpkg }) {
                 if (type.name === "SelectedImport") {
                     in_selected_import = false
                 }
+                if (type.name === "ScopedIdentifier") {
+                    let node = getNode()
+                    if (node.parent.name === "Import" || node.parent.name === "SelectedImport") {
+                        is_inside_scoped_identifier = false
+                        let package_name = view.state.doc.sliceString(from, to)
+
+                        if (package_name.startsWith(".")) {
+                            return
+                        }
+
+                        package_name = package_name.split(".")[0]
+                        add_widget(package_name, to)
+
+                        if (in_selected_import) {
+                            in_import = false
+                        }
+                    }
+                }
             },
         })
     }
     return Decoration.set(widgets)
-}
-
-// https://codemirror.net/6/docs/ref/#rangeset.RangeCursor
-export const collect_RangeCursor = (rc) => {
-    let output = []
-    while (rc.value != null) {
-        output.push(rc.value)
-        rc.next()
-    }
-    return output
 }
 
 export const NotebookpackagesFacet = Facet.define({
@@ -155,16 +197,13 @@ export const pkgBubblePlugin = ({ pluto_actions, notebook_id }) =>
              * @param {ViewUpdate} update
              */
             update(update) {
-                if (update.docChanged || update.viewportChanged) {
+                if (
+                    update.docChanged ||
+                    update.viewportChanged ||
+                    update.state.facet(NotebookpackagesFacet) !== update.startState.facet(NotebookpackagesFacet)
+                ) {
                     this.update_decos(update.view)
                     return
-                }
-
-                if (update.state.facet(NotebookpackagesFacet) !== update.startState.facet(NotebookpackagesFacet)) {
-                    let nbpkg = update.state.facet(NotebookpackagesFacet)
-                    collect_RangeCursor(this.decorations.iter()).forEach((pd) => {
-                        pd.widget.on_nbpkg(nbpkg)
-                    })
                 }
             }
         },

@@ -159,6 +159,28 @@ import Distributed
         end
     end
 
+
+    # PlutoTest.jl is only working on Julia version >= 1.6
+    VERSION >= v"1.6" && @testset "Test Firebasey" begin
+        🍭.options.evaluation.workspace_use_distributed = true
+
+        file = tempname()
+        write(file, read(normpath(Pluto.project_relative_path("src", "webserver", "Firebasey.jl"))))
+
+        notebook = Pluto.load_notebook_nobackup(file)
+        fakeclient.connected_notebook = notebook
+
+        update_run!(🍭, notebook, notebook.cells)
+
+        # Test that the resulting file is runnable
+        @test jl_is_runnable(file)
+        # and also that Pluto can figure out the execution order on its own
+        @test all(noerror, notebook.cells)
+
+        WorkspaceManager.unmake_workspace((🍭, notebook))
+        🍭.options.evaluation.workspace_use_distributed = false
+    end
+
     @testset "Pkg topology workarounds" begin
         notebook = Notebook([
             Cell("1 + 1"),
@@ -235,7 +257,344 @@ import Distributed
         @test run_order == [3, 1, 2]
     end
 
-    
+    @testset "Reactive usings" begin
+        notebook = Notebook([
+            Cell("June"),
+            Cell("using Dates"),
+            Cell("July"),
+        ])
+        fakeclient.connected_notebook = notebook
+
+        update_run!(🍭, notebook, notebook.cells[1:1])
+
+        @test notebook.cells[1].errored == true # this cell is before the using Dates and will error
+        @test notebook.cells[3].errored == false # using the position in the notebook this cell will not error
+
+        update_run!(🍭, notebook, notebook.cells[2:2])
+
+        @test notebook.cells[1].errored == false
+        @test notebook.cells[3].errored == false
+    end
+
+    @testset "Reactive usings 2" begin
+        notebook = Notebook([
+            Cell("October"),
+            Cell("using Dates"),
+            Cell("December"),
+            Cell(""),
+        ])
+        fakeclient.connected_notebook = notebook
+
+        update_run!(🍭, notebook, notebook.cells)
+
+        @test notebook.cells[1].errored == false
+        @test notebook.cells[3].errored == false
+
+        setcode(notebook.cells[2], "")
+        update_run!(🍭, notebook, notebook.cells[2:2])
+
+        @test notebook.cells[1].errored == true
+        @test notebook.cells[3].errored == true
+
+        setcode(notebook.cells[4], "December = 13")
+        update_run!(🍭, notebook, notebook.cells[4:4])
+
+        @test notebook.cells[1].errored == true
+        @test notebook.cells[3] |> noerror
+
+        setcode(notebook.cells[2], "using Dates")
+        update_run!(🍭, notebook, notebook.cells[2:2])
+
+        @test notebook.cells[1] |> noerror
+        @test notebook.cells[3] |> noerror
+        @test notebook.cells[3].output.body == "13"
+    end
+
+    @testset "Reactive usings 3" begin
+        notebook = Notebook([
+            Cell("archive_artifact"),
+            Cell("using Unknown.Package"),
+        ])
+        fakeclient.connected_notebook = notebook
+
+        update_run!(🍭, notebook, notebook.cells)
+
+        @test notebook.cells[1].errored == true
+        @test notebook.cells[2].errored == true
+
+        setcode(notebook.cells[2], "using Pkg.Artifacts")
+        update_run!(🍭, notebook, notebook.cells)
+
+        @test notebook.cells[1] |> noerror
+        @test notebook.cells[2] |> noerror
+    end
+
+    @testset "Reactive usings 4" begin
+        🍭.options.evaluation.workspace_use_distributed = true
+
+        notebook = Notebook([
+            Cell("@sprintf \"double_december = %d\" double_december"),
+            Cell("double_december = 2December"),
+            Cell("archive_artifact"),
+            Cell(""),
+        ])
+
+        fakeclient.connected_notebook = notebook
+
+        update_run!(🍭, notebook, notebook.cells)
+
+        @test notebook.cells[1].errored == true
+        @test notebook.cells[2].errored == true
+        @test notebook.cells[3].errored == true
+
+        setcode(notebook.cells[4], "import Pkg; using Dates, Printf, Pkg.Artifacts")
+        update_run!(🍭, notebook, notebook.cells[4:4])
+
+        @test notebook.cells[1] |> noerror
+        @test notebook.cells[2] |> noerror
+        @test notebook.cells[3] |> noerror
+        @test notebook.cells[4] |> noerror
+        @test notebook.cells[1].output.body == "\"double_december = 24\""
+
+        WorkspaceManager.unmake_workspace((🍭, notebook))
+        🍭.options.evaluation.workspace_use_distributed = false
+    end
+
+    @testset "Reactive usings 5" begin
+        notebook = Notebook(Cell.([
+            "",
+            "x = ones(December * 2)",
+            "December = 3",
+        ]))
+
+        fakeclient.connected_notebook = notebook
+
+        update_run!(🍭, notebook, notebook.cells)
+
+        @test all(noerror, notebook.cells)
+
+        setcode(notebook.cells[begin], raw"""
+            begin
+                @eval(module Hello
+                    December = 12
+                    export December
+                end)
+                using .Hello
+            end
+        """)
+        update_run!(🍭, notebook, notebook.cells[begin])
+
+        @test all(noerror, notebook.cells)
+
+        WorkspaceManager.unmake_workspace((🍭, notebook))
+    end
+
+    @testset "Function dependencies" begin
+        🍭.options.evaluation.workspace_use_distributed = true
+
+        notebook = Notebook(Cell.([
+            "a'b",
+            "import LinearAlgebra",
+            "LinearAlgebra.conj(b::Int) = 2b",
+            "a = 10",
+            "b = 10",
+        ]))
+
+        fakeclient.connected_notebook = notebook
+        update_run!(🍭, notebook, notebook.cells)
+
+        @test :conj ∈ notebook.topology.nodes[notebook.cells[3]].soft_definitions
+        @test :conj ∈ notebook.topology.nodes[notebook.cells[1]].references
+        @test notebook.cells[1].output.body == "200"
+
+        WorkspaceManager.unmake_workspace((🍭, notebook))
+        🍭.options.evaluation.workspace_use_distributed = false
+    end
+
+    @testset "Function use inv in its def but also has a method on inv" begin
+        notebook = Notebook(Cell.([
+            """
+            struct MyStruct
+                s
+
+                MyStruct(x) = new(inv(x))
+            end
+            """,
+            """
+            Base.inv(s::MyStruct) = inv(s.s)
+            """,
+            "MyStruct(1.) |> inv"
+        ]))
+        cell(idx) = notebook.cells[idx]
+        fakeclient.connected_notebook = notebook
+        update_run!(🍭, notebook, notebook.cells)
+
+        @test cell(1) |> noerror
+        @test cell(2) |> noerror
+        @test cell(3) |> noerror
+
+        # Empty and run cells to remove the Base overloads that we created, just to be sure
+        setcode.(notebook.cells, [""])
+        update_run!(🍭, notebook, notebook.cells)
+
+        WorkspaceManager.unmake_workspace((🍭, notebook))
+    end
+
+    @testset "More challenging reactivity of extended function" begin
+        notebook = Notebook(Cell.([
+            "Base.inv(s::String) = s",
+            """
+            struct MyStruct
+                x
+                MyStruct(s::String) = new(inv(s))
+            end
+            """,
+            "Base.inv(ms::MyStruct) = inv(ms.x)",
+            "MyStruct(\"hoho\")",
+            "a = MyStruct(\"blahblah\")",
+            "inv(a)",
+        ]))
+        cell(idx) = notebook.cells[idx]
+        fakeclient.connected_notebook = notebook
+        update_run!(🍭, notebook, notebook.cells)
+
+        @test all(noerror, notebook.cells)
+        @test notebook.cells[end].output.body == "\"blahblah\""
+
+        setcode(cell(1), "Base.inv(s::String) = s * \"suffix\"")
+        update_run!(🍭, notebook, cell(1))
+
+        @test all(noerror, notebook.cells)
+        @test notebook.cells[end].output.body == "\"blahblahsuffixsuffix\"" # 2 invs, 1 in constructor, 1 in inv(::MyStruct)
+
+        setcode(cell(3), "Base.inv(ms::MyStruct) = ms.x") # remove inv in inv(::MyStruct)
+        update_run!(🍭, notebook, cell(3))
+
+        @test all(noerror, notebook.cells)
+        @test notebook.cells[end].output.body == "\"blahblahsuffix\"" # only one inv
+
+        # Empty and run cells to remove the Base overloads that we created, just to be sure
+        setcode.(notebook.cells, [""])
+        update_run!(🍭, notebook, notebook.cells)
+        WorkspaceManager.unmake_workspace((🍭, notebook))
+    end
+
+    @testset "multiple cells cycle" begin
+        notebook = Notebook(Cell.([
+            "a = inv(1)",
+            "b = a",
+            "c = b",
+            "Base.inv(x::Float64) = a",
+            "d = Float64(c)",
+        ]))
+        fakeclient.connected_notebook = notebook
+        update_run!(🍭, notebook, notebook.cells)
+
+        @test all(noerror, notebook.cells)
+        @test notebook.cells[end].output.body == "1.0" # a
+    end
+
+    @testset "one cell in two different cycles where one is not a real cycle" begin
+        notebook = Notebook(Cell.([
+            "x = inv(1) + z",
+            "y = x",
+            "z = y",
+            "Base.inv(::Float64) = y",
+            "inv(1.0)",
+        ]))
+        fakeclient.connected_notebook = notebook
+        update_run!(🍭, notebook, notebook.cells)
+
+        @test notebook.cells[end].errored == true
+        @test occursinerror("Cyclic", notebook.cells[1])
+        @test occursinerror("UndefVarError: y", notebook.cells[end]) # this is an UndefVarError and not a CyclicError
+
+        setcode.(notebook.cells, [""])
+        update_run!(🍭, notebook, notebook.cells)
+        WorkspaceManager.unmake_workspace((🍭, notebook))
+    end
+
+    @testset "Reactive methods definitions" begin
+        notebook = Notebook(Cell.([
+            raw"""
+            Base.sqrt(s::String) = "sqrt($s)"
+            """,
+            """
+            string((sqrt("🍕"), rand()))
+            """,
+            "",
+        ]))
+        cell(idx) = notebook.cells[idx]
+        fakeclient.connected_notebook = notebook
+        update_run!(🍭, notebook, notebook.cells)
+
+        output_21 = cell(2).output.body
+        @test contains(output_21, "sqrt(🍕)")
+
+        setcode(cell(3), """
+        Base.sqrt(x::Int) = sqrt(Float64(x)^2)
+        """)
+        update_run!(🍭, notebook, cell(3))
+
+        output_22 = cell(2).output.body
+        @test cell(3) |> noerror
+        @test cell(2) |> noerror
+        @test cell(1) |> noerror
+        @test output_21 != output_22 # cell2 re-run
+        @test contains(output_22, "sqrt(🍕)")
+
+        setcode.(notebook.cells, [""])
+        update_run!(🍭, notebook, notebook.cells)
+        WorkspaceManager.unmake_workspace((🍭, notebook))
+    end
+
+    @testset "Don't lose basic generic types with macros" begin
+        notebook = Notebook(Cell.([
+            "f(::Val{1}) = @info x",
+            "f(::Val{2}) = @info x",
+        ]))
+        update_run!(🍭, notebook, notebook.cells)
+
+        @test notebook.cells[1] |> noerror
+        @test notebook.cells[2] |> noerror
+    end
+
+    @testset "Two inter-twined cycles" begin
+        notebook = Notebook(Cell.([
+            """
+            begin
+                struct A
+                    x
+                    A(x) = A(inv(x))
+                end
+                rand()
+            end
+            """,
+            "Base.inv(::A) = A(1)",
+            """
+            struct B
+                x
+                B(x) = B(inv(x))
+            end
+            """,
+            "Base.inv(::B) = B(1)",
+        ]))
+        update_run!(🍭, notebook, notebook.cells)
+
+        @test all(noerror, notebook.cells)
+        output_1 = notebook.cells[begin].output.body
+
+        update_run!(🍭, notebook, notebook.cells[2])
+
+        @test noerror(notebook.cells[1])
+        @test notebook.cells[1].output.body == output_1
+        @test noerror(notebook.cells[2])
+
+        setcode.(notebook.cells, [""])
+        update_run!(🍭, notebook, notebook.cells)
+        WorkspaceManager.unmake_workspace((🍭, notebook))
+    end
+
     @testset "Multiple methods across cells" begin
         notebook = Notebook([
             Cell("a(x) = 1"),
@@ -332,7 +691,7 @@ import Distributed
         @test notebook.cells[10].errored == false
         @test notebook.cells[11].output.body == "9"
         @test notebook.cells[12].output.body == "10"
-        @test_broken notebook.cells[13].output.body == "10"
+        @test notebook.cells[13].output.body == "10"
         update_run!(🍭, notebook, notebook.cells[13])
         @test notebook.cells[13].output.body == "10"
 
@@ -442,12 +801,56 @@ import Distributed
 
     @testset "Cyclic" begin
         notebook = Notebook([
-            Cell("xxx = yyy"),
-            Cell("yyy = xxx"),
-            Cell("zzz = yyy"),
+            Cell("xxx = yyy")
+            Cell("yyy = xxx")
+            Cell("zzz = yyy")
 
-            Cell("aaa() = bbb"),
-            Cell("bbb = aaa()"),
+            Cell("aaa() = bbb")
+            Cell("bbb = aaa()")
+            
+            Cell("w1(x) = w2(x - 1) + 1")
+            Cell("w2(x) = x > 0 ? w1(x) : x")
+            Cell("w1(8)")
+            
+            Cell("p1(x) = p2(x) + p1(x)")
+            Cell("p2(x) = p1(x)")
+
+            # 11
+            Cell("z(x::String) = z(1)")
+            Cell("z(x::Integer) = z()")
+            
+            # 13
+            # some random Base function that we are overloading 
+            Cell("Base.get(x::InterruptException) = Base.get(1)")
+            Cell("Base.get(x::ArgumentError) = Base.get()")
+            
+            Cell("Base.step(x::InterruptException) = step(1)")
+            Cell("Base.step(x::ArgumentError) = step()")
+            
+            Cell("Base.exponent(x::InterruptException) = Base.exponent(1)")
+            Cell("Base.exponent(x::ArgumentError) = exponent()")
+            
+            # 19
+            Cell("Base.chomp(x::InterruptException) = split() + chomp()")
+            Cell("Base.chomp(x::ArgumentError) = chomp()")
+            Cell("Base.split(x::InterruptException) = split()")
+            
+            # 22
+            Cell("Base.transpose(x::InterruptException) = Base.trylock() + Base.transpose()")
+            Cell("Base.transpose(x::ArgumentError) = Base.transpose()")
+            Cell("Base.trylock(x::InterruptException) = Base.trylock()")
+
+            # 25
+            Cell("Base.digits(x::ArgumentError) = Base.digits() + Base.isconst()")
+            Cell("Base.isconst(x::InterruptException) = digits()")
+
+            # 27
+            Cell("f(x) = g(x-1)")
+            Cell("g(x) = h(x-1)")
+            Cell("h(x) = i(x-1)")
+            Cell("i(x) = j(x-1)")
+            Cell("j(x) = (x > 0) ? f(x-1) : :done")
+            Cell("f(8)")
         ])
         fakeclient.connected_notebook = notebook
 
@@ -487,6 +890,9 @@ import Distributed
         @test notebook.cells[2].output.body == "3"
         @test notebook.cells[3].output.body == "3"
 
+        ##
+        
+        
         update_run!(🍭, notebook, notebook.cells[4:5])
         @test occursinerror("Cyclic reference", notebook.cells[4])
         @test occursinerror("aaa", notebook.cells[4])
@@ -495,6 +901,48 @@ import Distributed
         @test occursinerror("aaa", notebook.cells[5])
         @test occursinerror("bbb", notebook.cells[5])
 
+        
+        
+        
+        
+        update_run!(🍭, notebook, notebook.cells[6:end])
+        @test noerror(notebook.cells[6])
+        @test noerror(notebook.cells[7])
+        @test noerror(notebook.cells[8])
+        @test noerror(notebook.cells[9])
+        @test noerror(notebook.cells[10])
+        @test noerror(notebook.cells[11])
+        @test noerror(notebook.cells[12])
+        @test noerror(notebook.cells[13])
+        @test noerror(notebook.cells[14])
+        @test noerror(notebook.cells[15])
+        @test noerror(notebook.cells[16])
+        @test noerror(notebook.cells[17])
+        @test noerror(notebook.cells[18])
+        @test noerror(notebook.cells[19])
+        @test noerror(notebook.cells[20])
+        @test noerror(notebook.cells[21])
+        @test noerror(notebook.cells[22])
+        @test noerror(notebook.cells[23])
+        @test noerror(notebook.cells[24])
+        @test noerror(notebook.cells[25])
+        @test noerror(notebook.cells[26])
+
+        ##
+        @test noerror(notebook.cells[27])
+        @test noerror(notebook.cells[28])
+        @test noerror(notebook.cells[29])
+        @test noerror(notebook.cells[30])
+        @test noerror(notebook.cells[31])
+        @test noerror(notebook.cells[32])
+        @test notebook.cells[32].output.body == ":done"
+
+        @assert length(notebook.cells) == 32
+        
+        # Empty and run cells to remove the Base overloads that we created, just to be sure
+        setcode.(notebook.cells, [""])
+        update_run!(🍭, notebook, notebook.cells)
+        
         WorkspaceManager.unmake_workspace((🍭, notebook))
     end
 
@@ -761,7 +1209,7 @@ import Distributed
         @test notebook.cells[29].output.body == "true"
         @test_nowarn update_run!(🍭, notebook, notebook.cells[27])
         @test notebook.cells[28].output.body == "\"🎈\""
-        @test_broken notebook.cells[29].output.body == "\"🎈\"" # adding the overload doesn't trigger automatic re-eval because `isodd` doesn't match `Base.isodd`
+        @test notebook.cells[29].output.body == "\"🎈\"" # adding the overload doesn't trigger automatic re-eval because `isodd` doesn't match `Base.isodd`
         @test_nowarn update_run!(🍭, notebook, notebook.cells[28:29])
         @test notebook.cells[28].output.body == "\"🎈\""
         @test notebook.cells[29].output.body == "\"🎈\""
@@ -769,7 +1217,7 @@ import Distributed
         setcode(notebook.cells[27], "")
         update_run!(🍭, notebook, notebook.cells[27])
         @test notebook.cells[28].output.body == "false"
-        @test_broken notebook.cells[29].output.body == "true" # removing the overload doesn't trigger automatic re-eval because `isodd` doesn't match `Base.isodd`
+        @test notebook.cells[29].output.body == "true" # removing the overload doesn't trigger automatic re-eval because `isodd` doesn't match `Base.isodd`
         update_run!(🍭, notebook, notebook.cells[28:29])
         @test notebook.cells[28].output.body == "false"
         @test notebook.cells[29].output.body == "true"
@@ -940,6 +1388,20 @@ import Distributed
             Cell("""struct A7 end; filter(1:3) do x
                 return true
             end"""),
+
+            # Function assignments
+            Cell("""f(x) = if x == 1
+                return false
+            else
+                return true
+            end"""),
+            Cell("""g(x::T) where {T} = if x == 1
+                return false
+            else
+                return true
+            end"""),
+            Cell("(h(x::T)::MyType) where {T} = return(x)"),
+            Cell("i(x)::MyType = return(x)"),
         ])
 
         update_run!(🍭, notebook, notebook.cells)
@@ -949,7 +1411,7 @@ import Distributed
         @test occursinerror("You can only use return inside a function.", notebook.cells[4])
         @test occursinerror("You can only use return inside a function.", notebook.cells[5])
         @test occursinerror("You can only use return inside a function.", notebook.cells[6])
-        @test notebook.cells[7].errored == false
+        @test notebook.cells[7] |> noerror
 
         @test occursinerror("You can only use return inside a function.", notebook.cells[8])
         @test occursinerror("You can only use return inside a function.", notebook.cells[9])
@@ -957,7 +1419,13 @@ import Distributed
         @test occursinerror("You can only use return inside a function.", notebook.cells[11])
         @test occursinerror("You can only use return inside a function.", notebook.cells[12])
         @test occursinerror("You can only use return inside a function.", notebook.cells[13])
-        @test notebook.cells[14].errored == false
+        @test notebook.cells[14] |> noerror
+
+        # Function assignments
+        @test notebook.cells[15] |> noerror
+        @test notebook.cells[16] |> noerror
+        @test notebook.cells[17] |> noerror
+        @test notebook.cells[18] |> noerror
 
         WorkspaceManager.unmake_workspace((🍭, notebook))
     end
