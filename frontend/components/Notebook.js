@@ -19,12 +19,14 @@ let CellMemo = ({
     force_hide_input,
     is_process_ready,
     disable_input,
+    show_logs,
+    set_show_logs,
     nbpkg,
 }) => {
     const selected_cells_diffable_primitive = (selected_cells || []).join("")
     const { body, last_run_timestamp, mime, persist_js_state, rootassignee } = cell_result?.output || {}
-    const { queued, running, runtime, errored, depends_on_disabled_cells } = cell_result || {}
     const { cell_id, code, code_folded, running_disabled, notebook_exclusive } = cell_input || {}
+    const { queued, running, runtime, errored, depends_on_disabled_cells, logs } = cell_result || {}
     return useMemo(() => {
         return html`
             <${Cell}
@@ -42,6 +44,8 @@ let CellMemo = ({
                 focus_after_creation=${focus_after_creation}
                 is_process_ready=${is_process_ready}
                 disable_input=${disable_input}
+                show_logs=${show_logs}
+                set_show_logs=${set_show_logs}
                 nbpkg=${nbpkg}
             />
         `
@@ -59,6 +63,7 @@ let CellMemo = ({
         mime,
         persist_js_state,
         rootassignee,
+        logs,
         code,
         code_folded,
         cell_input_local,
@@ -73,6 +78,7 @@ let CellMemo = ({
         focus_after_creation,
         is_process_ready,
         disable_input,
+        show_logs,
         ...nbpkg_fingerprint(nbpkg),
     ])
 }
@@ -99,6 +105,8 @@ const render_cell_outputs_minimum = 20
  *  is_initializing: boolean,
  *  is_process_ready: boolean,
  *  disable_input: any,
+ *  show_logs: boolean,
+ *  set_show_logs: any,
  * }} props
  * */
 export const Notebook = ({
@@ -112,6 +120,8 @@ export const Notebook = ({
     is_initializing,
     is_process_ready,
     disable_input,
+    show_logs,
+    set_show_logs,
 }) => {
     let pluto_actions = useContext(PlutoContext)
 
@@ -149,6 +159,7 @@ export const Notebook = ({
                             errored: false,
                             runtime: null,
                             output: null,
+                            logs: [],
                         }}
                         cell_input=${notebook.cell_inputs[cell_id]}
                         cell_dependencies=${notebook.cell_dependencies[cell_id] ?? {}}
@@ -163,6 +174,8 @@ export const Notebook = ({
                         force_hide_input=${false}
                         is_process_ready=${is_process_ready}
                         disable_input=${disable_input}
+                        show_logs=${show_logs}
+                        set_show_logs=${set_show_logs}
                         nbpkg=${notebook.nbpkg}
                     />`
                 )}
