@@ -42,7 +42,7 @@ function generate_html(;
     #     pluto_cdn_root
     # end
 
-    cdn_root = "https://cdn.jsdelivr.net/gh/disberd/Pluto.jl@CM6-exclusive-old/frontend/"
+    cdn_root = "https://cdn.jsdelivr.net/gh/disberd/Pluto.jl@main/frontend/"
 
     @debug "Using CDN for Pluto assets:" cdn_root
 
