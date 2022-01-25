@@ -187,5 +187,8 @@
         --index-text-color: hsl(0, 0, 60);
         --index-clickable-text-color: hsl(0, 0, 30);
         --docs-binding-bg: #8383830a;
+
+        /* notebook exclusive border color */
+        --exclusive-border-color: #ccc;
     }
 }

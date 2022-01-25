@@ -186,6 +186,9 @@
 
         /* docs binding */
         --docs-binding-bg: #323431;
+
+        /* notebook exclusive border color */
+        --exclusive-border-color: #888;
     }
     body:not(.disable_ui):not(.more-specificity) {
         /* background by SVGBackgrounds.com */
