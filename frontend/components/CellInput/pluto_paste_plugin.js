@@ -13,24 +13,8 @@ export let pluto_paste_plugin = ({ pluto_actions, cell_id }) => {
             // Prevent this event from reaching the Editor-level paste handler
             event.stopPropagation()
 
-            const cdata = event.clipboardData
-            if (cdata.files.length > 0) {  /* Clipboard is a file, we want to capture the file and save it on the computer */
-                event.preventDefault()
-                let myBlob = cdata.files[0]
-                let ftype,fext 
-                [ftype, fext] = myBlob.type.split("/")  /* Separate image type and extension */
-                // Create the href to download the image
-                let link = document.createElement("a")
-                link.href = URL.createObjectURL(myBlob) /* Create URL from the Blob */
-                let fname = cell_id + "." + fext /* Create the file name from t he cell_id */
-                link.download = fname
-                link.click() // Downlaod the file
-                view.dom.CodeMirror.setValue(`show_pasted_image(\"${fname}\")`)
-                return true
-            }
-
             const topaste = event.clipboardData.getData("text/plain")
-            const deserializer = detect_deserializer(topaste, false)
+            const deserializer = detect_deserializer(topaste)
             if (deserializer == null) {
                 return false
             }
