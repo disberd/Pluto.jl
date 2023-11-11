@@ -1,46 +1,62 @@
+# The goal of this file is to import PlutoRunner into Main. 
+# 
+# This is difficult because PlutoRunner uses standard libraries and packages that are not necessarily available in the standard environment. 
+# 
+# Our solution is to create a temporary environment just for loading PlutoRunner. This environment is stored in `.julia/environments/__pluto_book_v*_*/`, and used by all notebook launches. Reusing the environment means extra speed.
+
 begin
-pushfirst!(LOAD_PATH, "@stdlib")
-import Pkg
-popfirst!(LOAD_PATH)
+    pushfirst!(LOAD_PATH, "@stdlib")    
+    import Pkg
+    popfirst!(LOAD_PATH)
 
-# We need to Pkg.instantiate the package environment that this notebook worker process will launch in
-local my_dir = @__DIR__
-local pluto_dir = joinpath(my_dir, "..", "..")
 
-local runner_env_dir = mkpath(joinpath(Pkg.envdir(Pkg.depots()[1]), "__pluto_boot_v2_" * string(VERSION)))
-local new_ptoml_path = joinpath(runner_env_dir, "Project.toml")
+    # Path to our notebook boot package environment
+    local runner_env_dir = mkpath(joinpath(Pkg.envdir(Pkg.depots()[1]), "__pluto_boot_v3_" * string(VERSION)))
 
-local ptoml_contents = read(joinpath(my_dir, "NotebookProcessProject.toml"), String)
-write(new_ptoml_path, ptoml_contents)
+    local original_LP = LOAD_PATH
+    local original_AP = Base.ACTIVE_PROJECT[]
 
-local pkg_ctx = Pkg.Types.Context(env=Pkg.Types.EnvCache(new_ptoml_path))
+    local new_LP = ["@", "@stdlib"]
+    local new_AP = runner_env_dir
 
-try
-    Pkg.resolve(pkg_ctx; io=devnull) # supress IO
-catch
-    # if it failed, do it again without suppressing io
     try
-        Pkg.resolve(pkg_ctx)
-    catch e
-        @error "Failed to resolve notebook boot environment" exception=(e, catch_backtrace())
+        
+        # Activate the environment
+        copy!(LOAD_PATH, new_LP)
+        Base.ACTIVE_PROJECT[] = new_AP
+        
+        # Set up our notebook boot package environment by adding a single package:
+        Pkg.develop([Pkg.PackageSpec(; 
+            path=joinpath(@__DIR__, "PlutoRunner"),
+        )]; io=devnull)
+        
+        # Resolve
+        try
+            Pkg.resolve(; io=devnull) # supress IO
+        catch
+            # if it failed, do it again without suppressing io
+            try
+                Pkg.resolve()
+            catch e
+                @error "Failed to resolve notebook boot environment" exception=(e, catch_backtrace())
+            end
+        end
+        
+        # Instantiate
+        try
+            # we don't suppress IO for this one because it can take very long, and that would be a frustrating experience without IO
+            # precompilation switched off because of https://github.com/fonsp/Pluto.jl/issues/875
+            Pkg.instantiate(; update_registry=false, allow_autoprecomp=false) 
+        catch e
+            @error "Failed to instantiate notebook boot environment" exception=(e, catch_backtrace())
+        end
+        
+        # Import PlutoRunner into Main
+        import PlutoRunner
+        
+    finally
+        # Reset the pkg environment
+        copy!(LOAD_PATH, original_LP)
+        Base.ACTIVE_PROJECT[] = original_AP
     end
-end
-try
-    # we don't suppress IO for this one because it can take very long, and that would be a frustrating experience without IO
-    
-    # precompilation switched off because of https://github.com/fonsp/Pluto.jl/issues/875
-    Pkg.instantiate(pkg_ctx; update_registry=false, allow_autoprecomp=false) 
-
-catch e
-    @error "Failed to instantiate notebook boot environment" exception=(e, catch_backtrace())
-end
-
-
-pushfirst!(LOAD_PATH, runner_env_dir)
-
-#
-include(joinpath(my_dir, "PlutoRunner.jl"))
-#
-
-popfirst!(LOAD_PATH)
 end
