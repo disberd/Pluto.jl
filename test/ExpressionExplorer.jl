@@ -1,4 +1,5 @@
 using Test
+import Pluto: PlutoRunner
 
 #=
 `@test_broken` means that the test doesn't pass right now, but we want it to pass. Feel free to try to fix it and open a PR!
@@ -165,6 +166,9 @@ Some of these @test_broken lines are commented out to prevent printing to the te
         @test testee(:(x = let a = 1; a += b end), [:b], [:x], [:+], [])
         @test testee(:(_ = a + 1), [:a], [], [:+], [])
         @test testee(:(a = _ + 1), [], [:a], [:+], [])
+
+        @test testee(:(f()[] = 1), [], [], [:f], [])
+        @test testee(:(x[f()] = 1), [:x], [], [:f], [])
     end
     @testset "Multiple assignments" begin
         # Note that using the shorthand syntax :(a = 1, b = 2) to create an expression
@@ -206,6 +210,18 @@ Some of these @test_broken lines are commented out to prevent printing to the te
         @test testee(quote
             a, b... = 0:5
         end, [],[:a, :b], [[:(:)]], [])
+        @test testee(quote
+            a[x], x = 1, 2
+        end, [:a], [:x], [], [])
+        @test testee(quote
+            x, a[x] = 1, 2
+        end, [:a], [:x], [], [])
+        @test testee(quote
+            f, a[f()] = g
+        end, [:g, :a], [:f], [], [])
+        @test testee(quote
+            a[f()], f = g
+        end, [:g, :a], [:f], [], [])
         @test testee(quote (; a, b) = x end, [:x], [:a, :b], [], [])
         @test testee(quote a = (b, c) end, [:b, :c], [:a], [], [])
 
@@ -244,13 +260,21 @@ Some of these @test_broken lines are commented out to prevent printing to the te
         @test testee(:(for k in 1:2, r in 3:4; global z = k + r; end), [], [:z], [:+, :(:)], [])
         @test testee(:(while k < 2; r = w; global z = k + r; end), [:k, :w], [:z], [:+, :(<)], [])
     end
-    @testset "`try` & `catch`" begin
+    @testset "`try` & `catch` & `else` & `finally`" begin
         @test testee(:(try a = b + 1 catch; end), [:b], [], [:+], [])
         @test testee(:(try a() catch e; e end), [], [], [:a], [])
         @test testee(:(try a() catch; e end), [:e], [], [:a], [])
         @test testee(:(try a + 1 catch a; a end), [:a], [], [:+], [])
         @test testee(:(try 1 catch e; e finally a end), [:a], [], [], [])
         @test testee(:(try 1 finally a end), [:a], [], [], [])
+
+        # try catch else was introduced in 1.8
+        @static if VERSION >= v"1.8.0"
+            @test testee(Meta.parse("try 1 catch else x = 1; x finally a; end"), [:a], [], [], [])
+            @test testee(Meta.parse("try 1 catch else x = j; x finally a; end"), [:a, :j], [], [], [])
+            @test testee(Meta.parse("try x = 2 catch else x finally a; end"), [:a, :x], [], [], [])
+            @test testee(Meta.parse("try x = 2 catch else x end"), [:x], [], [], [])
+        end
     end
     @testset "Comprehensions" begin
         @test testee(:([sqrt(s) for s in 1:n]), [:n], [], [:sqrt, :(:)], [])
@@ -778,5 +802,17 @@ Some of these @test_broken lines are commented out to prevent printing to the te
             () -> Date
         end)
         @test :Date ∈ rn.references
+    end
+end
+
+@testset "UTF-8 to Codemirror UTF-16 byte mapping" begin
+    # range ends are non inclusives
+    tests = [
+        (" aaaa", (2, 4), (1, 3)), # cm is zero based
+        (" 🍕🍕", (2, 6), (1, 3)), # a 🍕 is two UTF16 codeunits
+        (" 🍕🍕", (6, 10), (3, 5)), # a 🍕 is two UTF16 codeunits
+    ]
+    for (s, (start_byte, end_byte), (from, to)) in tests
+        @test PlutoRunner.map_byte_range_to_utf16_codepoints(s, start_byte, end_byte) == (from, to)
     end
 end
