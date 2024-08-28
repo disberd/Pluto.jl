@@ -34,8 +34,6 @@ function move_vars(
     old_workspace = getfield(Main, old_workspace_name)
     new_workspace = getfield(Main, new_workspace_name)
 
-    do_reimports(new_workspace, module_imports_to_move)
-
     for cell_id in cells_to_macro_invalidate
         delete!(cell_expanded_exprs, cell_id)
     end
@@ -95,6 +93,8 @@ function move_vars(
             end
         end
     end
+
+    do_reimports(new_workspace, module_imports_to_move)
 
     revise_if_possible(new_workspace)
 end
